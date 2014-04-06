@@ -1,0 +1,28 @@
+{
+  "name": "gulp-cortex-build",
+  "version": "0.1.0",
+  "description": "Wrap commonjs module/1.0 javascript files for [cortex](http://github.com/kaelzhang/cortex)",
+  "main": "index.js",
+  "scripts": {
+    "test": "make test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:cortexjs/node-gulp-cortex-build.git"
+  },
+  "keywords": [
+    "gulp-cortex-build"
+  ],
+  "engines": { 
+    "node": ">=0.8.0"
+  },
+  "author": "kael",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/cortexjs/node-gulp-cortex-build/issues"
+  },
+  "devDependencies": {
+    "mocha": "~1.13.0",
+    "chai": "~1.8.0"
+  }
+}
