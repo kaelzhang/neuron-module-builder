@@ -1,6 +1,6 @@
 {
   "name": "neuron-builder",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Wrap commonjs module/1.0 javascript files for [cortex](http://github.com/kaelzhang/cortex)",
   "main": "index.js",
   "scripts": {
