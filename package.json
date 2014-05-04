@@ -13,7 +13,7 @@
   "keywords": [
     "neuron-builder"
   ],
-  "engines": { 
+  "engines": {
     "node": ">=0.8.0"
   },
   "author": "kael",
@@ -22,7 +22,12 @@
     "url": "https://github.com/cortexjs/node-neuron-builder/issues"
   },
   "devDependencies": {
-    "mocha": "~1.13.0",
-    "chai": "~1.8.0"
+    "mocha": "^1.18.2",
+    "chai": "~1.8.0",
+    "jsonfile": "^1.1.1",
+    "should": "^3.3.1"
+  },
+  "dependencies": {
+    "commonjs-walker": "^1.0.2"
   }
 }

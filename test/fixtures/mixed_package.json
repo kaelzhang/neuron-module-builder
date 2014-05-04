@@ -1,0 +1,13 @@
+{
+  "name":"test-module",
+  "version":"0.1.0",
+  "main":"input.js",
+  "dependencies": {
+    "a": "0.0.1",
+    "b": "0.0.2"
+  },
+  "asyncDependencies": {
+  	"c": "0.0.3"
+  },
+  "entries":["input.js","c.js","d.js","folder/child.js"]
+}
