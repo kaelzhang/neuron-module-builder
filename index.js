@@ -2,7 +2,9 @@ var walker = require('commonjs-walker');
 var fs = require('fs');
 var path = require('path');
 var util = require('util');
-var tpl = fs.readFileSync("./wrap-template.tpl","utf8");
+var tpl = "define(\"%s\", %s, function(require, exports, module) {\n"
+    + "%s\n"
++"}, %s);";
 
 
 function generateId(filepath,main_id,cwd) {
@@ -51,13 +53,13 @@ function resolveDependency(dep, opt) {
     return resolved;
 }
 
-function generateModuleOptions(pkg, filepath, isMain){
+function generateModuleOptions(mod, pkg){
     var module_options = {};
     var depRef = pkg.asyncDependencies || {};
     var asyncDeps = Object.keys(depRef).map(function(dep){
         return resolveDependency(dep,{
             deps: depRef,
-            file: filepath
+            file: mod.id
         });
     });
 
@@ -65,18 +67,18 @@ function generateModuleOptions(pkg, filepath, isMain){
         module_options.asyncDeps = asyncDeps;
     }
 
-    if(isMain){
+    if(mod.isEntryPoint){
         module_options.main = true;
     }
 
     return module_options;
 }
 
-function resolveDependencies(mods, pkg, file, cwd){
+function resolveDependencies(mod, pkg){
+    var file = mod.id;
+    var mods = mod.unresolvedDependencies;
     return mods.map(function(mod){
-        var dep = mod.id;
-        dep = isExternalDep(dep) ? dep : ("./" + path.relative(cwd, dep).replace(/\.js$/, ''));
-        return resolveDependency(dep, {
+        return resolveDependency(mod, {
             deps: pkg.dependencies,
             file: file
         });
@@ -101,10 +103,11 @@ exports.parse = function(filepath,opt,callback){
         }).sort(function(a,b){
             return a.isEntryPoint ? 1 : -1;
         }).map(function(mod){
-            var id = generateId(mod.id, main_id, cwd);
-            var deps = resolveDependencies(mod.dependencies, pkg, id, cwd);
+            var filepath = mod.id;
+            var id = generateId(filepath, main_id, cwd);
+            var deps = resolveDependencies(mod, pkg);
             var code = mod.code.toString().replace(/\r|\n/g, '\n');
-            var module_options = generateModuleOptions(pkg, id, mod.isEntryPoint);
+            var module_options = generateModuleOptions(mod, pkg);
 
             return util.format(tpl,
                 id,

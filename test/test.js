@@ -7,8 +7,6 @@ var jf = require('jsonfile');
 require('should');
 
 
-console.log(parser);
-
 describe("should parse css absolute image path correctly", function(){
     it('should prepend text', function(done) {
         var filepath = path.resolve('test/fixtures/input.js');
