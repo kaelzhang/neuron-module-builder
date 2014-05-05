@@ -66,7 +66,23 @@ describe("parse()", function(){
             allowNotInstalled: true
         }, function(err, contents){
             expect(err).to.be.null;
-            console.log(contents);
+            done();
+        });
+    });
+
+
+    it('main option', function(done) {
+        var filepath = path.resolve('test/fixtures/not-main-entry.js');
+
+        parser.parse( filepath, {
+            pkg : jf.readFileSync("test/fixtures/mixed_package.json"),
+            targetVersion : "latest",
+            cwd : path.resolve("./test/fixtures"),
+            allowNotInstalled: true
+        }, function(err, contents){
+            var actual = contents.toString();
+            var expect = fs.readFileSync('test/expected/not-main-entry.js','utf-8');
+            actual.should.equal(expect);
             done();
         });
     });

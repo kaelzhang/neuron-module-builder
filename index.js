@@ -128,7 +128,7 @@ Parser.prototype.generateModuleOptions = function(mod){
         module_options.asyncDeps = asyncDeps;
     }
 
-    if(mod.isEntryPoint){
+    if(mod.isEntryPoint && mod.id === path.join(cwd, pkg.main || "index.js")){
         module_options.main = true;
     }
 
