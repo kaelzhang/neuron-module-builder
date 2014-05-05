@@ -3,7 +3,7 @@ var path = require('path');
 var fs = require('fs');
 var parser = require('../');
 var jf = require('jsonfile');
-
+var expect = require('chai').expect;
 require('should');
 
 
@@ -30,7 +30,7 @@ describe("parse()", function(){
         var filepath = path.resolve('test/fixtures/version-not-specified.js');
 
         parser.parse( filepath, configs, function(err, contents){
-            err.should.not.be.null;
+            expect(err).to.not.be.null;
             done();
         });
     });
@@ -40,8 +40,8 @@ describe("parse()", function(){
         var filepath = path.resolve('test/fixtures/file-not-exists.js');
 
         parser.parse( filepath, configs, function(err, contents){
-            err.should.not.be.null;
-            err.message.match("Error reading module").should.not.be.null;
+            expect(err).to.not.be.null;
+            expect(err.message.match("Error reading module")).to.not.be.null;
             done();
         });
     });
@@ -50,7 +50,23 @@ describe("parse()", function(){
         var filepath = path.resolve('test/fixtures/file-out-of-entry-dir.js');
 
         parser.parse( filepath, configs, function(err, contents){
-            err.should.not.be.null;
+            expect(err).to.not.be.null;
+            done();
+        });
+    });
+
+
+    it('not fail for self mod', function(done) {
+        var filepath = path.resolve('test/fixtures/contain-self.js');
+
+        parser.parse( filepath, {
+            pkg : jf.readFileSync("test/fixtures/mixed_package.json"),
+            targetVersion : "latest",
+            cwd : path.resolve("./test/fixtures"),
+            allowNotInstalled: true
+        }, function(err, contents){
+            expect(err).to.be.null;
+            console.log(contents);
             done();
         });
     });
