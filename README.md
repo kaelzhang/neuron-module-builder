@@ -1,4 +1,4 @@
-# neuron-builder [![NPM version](https://badge.fury.io/js/neuron-builder.png)](http://badge.fury.io/js/neuron-builder) [![Build Status](https://travis-ci.org/cortexjs/node-neuron-builder.png?branch=master)](https://travis-ci.org/cortexjs/node-neuron-builder) [![Dependency Status](https://gemnasium.com/cortexjs/node-neuron-builder.png)](https://gemnasium.com/cortexjs/node-neuron-builder)
+# neuron-builder [![NPM version](https://badge.fury.io/js/neuron-builder.png)](http://badge.fury.io/js/neuron-builder) [![Build Status](https://travis-ci.org/cortexjs/neuron-builder.png?branch=master)](https://travis-ci.org/cortexjs/neuron-builder) [![Dependency Status](https://gemnasium.com/cortexjs/neuron-builder.png)](https://gemnasium.com/cortexjs/neuron-builder)
 
 ## API
 
