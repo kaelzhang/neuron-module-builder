@@ -2,9 +2,8 @@ var walker = require('commonjs-walker');
 var fs = require('fs');
 var path = require('path');
 var util = require('util');
-var tpl = "define(\"%s\", %s, function(require, exports, module) {\n"
-    + "%s\n"
-+"}, %s);";
+var async = require('async');
+
 
 var Parser = function(){};
 
@@ -14,7 +13,6 @@ Parser.prototype.parse = function(filepath,opt,callback){
     var mainEntry = opt.mainEntry;
     var pkg = opt.pkg;
     var targetVersion = opt.targetVersion;
-    var main_id = [pkg.name, opt.targetVersion || pkg.version].join("@");
     var allowNotInstalled = opt.allowNotInstalled;
 
 
@@ -26,37 +24,60 @@ Parser.prototype.parse = function(filepath,opt,callback){
         if(err){
             return callback(err);
         }
+
         var result;
-        try{
-            result = Object.keys(nodes).map(function(key){
+
+            var codes = Object.keys(nodes).map(function(key){
                 return nodes[key];
             }).filter(function(mod){
-                return mod.code;
+                return !mod.isForeign;
             }).sort(function(a,b){
                 return a.isEntryPoint ? 1 : -1;
-            }).map(function(mod){
-                var filepath = mod.id;
-                var id = self.generateId(filepath, main_id);
-                var deps = self.resolveDependencies(mod);
-                var code = mod.code.toString().replace(/\r|\n/g, '\n');
-                var module_options = self.generateModuleOptions(mod);
+            });
 
-                return util.format(tpl,
-                    id,
-                    JSON.stringify(deps),
-                    code,
-                    JSON.stringify(module_options,null,4)
-                );
 
-            }).join("\n");
-        }catch(e){
-            return callback(e)
-        }
-
-        callback(null, result);
+            async.map(codes, function(mod, done){
+                self.generateWrapingCode(mod, done);    
+            }, function(err, results){
+                if(err){
+                    return callback(err);
+                }else{
+                    callback(null, results.join("\n"));
+                }
+            });
     });
 }
 
+
+Parser.prototype.generateWrapingCode = function(mod, done){
+    var pkg = this.pkg;
+    var opt = this.opt;
+    var main_id = [pkg.name, opt.targetVersion || pkg.version].join("@");
+    var filepath = mod.id;
+    var deps;
+    var module_options = this.generateModuleOptions(mod);
+    var id = this.generateId(filepath, main_id);;
+    var code = mod.code.toString().replace();
+    var tpl = "define(\"%s\", %s, function(require, exports, module) {\n"
+        + "%s\n"
+    +"}, %s);";
+
+    try{
+        deps = this.resolveDependencies(mod);
+    }catch(e){
+        return done(e);
+    }
+
+
+
+    var result = util.format(tpl,
+        id,
+        JSON.stringify(deps),
+        code,
+        JSON.stringify(module_options,null,4)
+    );
+    done(null, result);
+};
 
 
 Parser.prototype.generateId = function(filepath,main_id,cwd) {
@@ -106,7 +127,7 @@ Parser.prototype.resolveDependency = function(dep, deps, file) {
         resolved = dep + '@' + version;
     }else{
         if(this.outOfDir(dep, file)){
-            throw new Error(util.format( 'Relative dependency "%s" out of main entry\'s directory.',dep));
+            throw new Error(util.format('Relative dependency "%s" out of main entry\'s directory.',dep));
         }
         resolved = dep;
     }
@@ -120,8 +141,9 @@ Parser.prototype.generateModuleOptions = function(mod){
     var cwd = this.cwd;
     var module_options = {};
     var depRef = pkg.asyncDependencies || {};
-    var asyncDeps = Object.keys(depRef).map(function(dep){
-        return self.resolveDependency(dep,depRef,mod.id);
+    var asyncDeps = Object.keys(depRef).map(function(name){
+        var version = depRef[name];
+        return [name,version].join("@");
     });
 
     if(asyncDeps.length){

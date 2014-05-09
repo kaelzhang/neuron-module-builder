@@ -28,6 +28,7 @@
     "should": "^3.3.1"
   },
   "dependencies": {
-    "commonjs-walker": "^1.0.3"
+    "commonjs-walker": "^1.0.3",
+    "async": "^0.8.0"
   }
 }
