@@ -3,7 +3,9 @@
   "version":"0.1.0",
   "main":"input.js",
   "dependencies": {
-    "a": "0.0.1",
+    "a": "0.0.1"
+  },
+  "devDependencies":{
     "b": "0.0.2"
   },
   "asyncDependencies": {

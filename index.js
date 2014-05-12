@@ -4,7 +4,6 @@ var path = require('path');
 var util = require('util');
 var async = require('async');
 
-
 var Parser = function(){};
 
 Parser.prototype.parse = function(filepath,opt,callback){
@@ -56,7 +55,7 @@ Parser.prototype.generateWrapingCode = function(mod, done){
     var filepath = mod.id;
     var deps;
     var module_options = this.generateModuleOptions(mod);
-    var id = this.generateId(filepath, main_id);;
+    var id = this.generateId(filepath, main_id);
     var code = mod.code.toString().replace();
     var tpl = "define(\"%s\", %s, function(require, exports, module) {\n"
         + "%s\n"
@@ -108,33 +107,6 @@ Parser.prototype.outOfDir = function(dep, file){
 }
 
 
-// @returns {string} resolved dependencies
-Parser.prototype.resolveDependency = function(dep, deps, file) {
-    // suppose:
-    //      ['./a', '../../b']
-    // `dep` may be relative item, validate it
-    var opt = this.opt;
-    var resolved;
-
-    if(this.isExternalDep(dep)){
-        var version = deps[dep];
-        if(!version && opt.allowNotInstalled){
-            version = "latest";
-        }
-        if(!version){
-            throw new Error(util.format('Explicit version of dependency "%s" has not defined in package.json. Use "cortex install %s --save.',dep,dep));
-        }
-        resolved = dep + '@' + version;
-    }else{
-        if(this.outOfDir(dep, file)){
-            throw new Error(util.format('Relative dependency "%s" out of main entry\'s directory.',dep));
-        }
-        resolved = dep;
-    }
-
-    return resolved;
-}
-
 Parser.prototype.generateModuleOptions = function(mod){
     var self = this;
     var pkg = this.pkg;
@@ -164,7 +136,26 @@ Parser.prototype.resolveDependencies = function(mod){
     var file = mod.id;
     var mods = mod.unresolvedDependencies;
     return mods.map(function(mod){
-        return self.resolveDependency(mod, pkg.dependencies,file);
+        var opt = self.opt;
+        var resolved;
+
+        if(self.isExternalDep(mod)){
+            var version = pkg.dependencies[mod] || (pkg.devDependencies && pkg.devDependencies[mod]);
+            if(!version && opt.allowNotInstalled){
+                version = "latest";
+            }
+            if(!version){
+                throw new Error(util.format('Explicit version of dependency "%s" has not defined in package.json. Use "cortex install %s --save.',dep,dep));
+            }
+            resolved = mod + '@' + version;
+        }else{
+            if(self.outOfDir(mod, file)){
+                throw new Error(util.format('Relative dependency "%s" out of main entry\'s directory.',mod));
+            }
+            resolved = mod;
+        }
+
+        return resolved;
     });
 }
 
