@@ -30,7 +30,7 @@ describe("parse()", function(){
         var filepath = path.resolve('test/fixtures/version-not-specified.js');
 
         parser.parse( filepath, configs, function(err, contents){
-            expect(err).to.not.be.null;
+            expect(/Explicit version of dependency \".*\" has not defined in package\.json/.test(err.message)).to.be.true;
             done();
         });
     });

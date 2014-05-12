@@ -145,7 +145,7 @@ Parser.prototype.resolveDependencies = function(mod){
                 version = "latest";
             }
             if(!version){
-                throw new Error(util.format('Explicit version of dependency "%s" has not defined in package.json. Use "cortex install %s --save.',dep,dep));
+                throw new Error(util.format('Explicit version of dependency "%s" has not defined in package.json. Use "cortex install %s --save.',mod,mod));
             }
             resolved = mod + '@' + version;
         }else{
