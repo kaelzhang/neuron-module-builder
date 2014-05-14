@@ -152,12 +152,12 @@ Parser.prototype.resolveDependencies = function(mod){
                 version = "latest";
             }
             if(!version){
-                throw new Error(util.format('Explicit version of dependency "%s" has not defined in package.json. Use "cortex install %s --save.',mod,mod));
+                throw new Error(util.format('Explicit version of dependency "%s" has not defined in package.json. Use "cortex install %s --save. file: %s',mod,mod,file));
             }
             resolved = mod + '@' + version;
         }else{
             if(self.outOfDir(mod, file)){
-                throw new Error(util.format('Relative dependency "%s" out of main entry\'s directory.',mod));
+                throw new Error(util.format('Relative dependency "%s" out of main entry\'s directory. file: %s',mod,file));
             }
             resolved = mod;
         }
@@ -167,4 +167,9 @@ Parser.prototype.resolveDependencies = function(mod){
 }
 
 
-module.exports = new Parser();
+module.exports = {
+    parse: function(filepath,opt,callback){
+        var parser = new Parser();
+        parser.parse(filepath,opt,callback);
+    }
+}
