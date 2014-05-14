@@ -154,7 +154,13 @@ Parser.prototype.resolveDependencies = function(mod){
             if(!version){
                 throw new Error(util.format('Explicit version of dependency "%s" has not defined in package.json. Use "cortex install %s --save. file: %s',mod,mod,file));
             }
+
+            version = version === '*'
+              ? 'latest'
+              : version;
+              
             resolved = mod + '@' + version;
+
         }else{
             if(self.outOfDir(mod, file)){
                 throw new Error(util.format('Relative dependency "%s" out of main entry\'s directory. file: %s',mod,file));

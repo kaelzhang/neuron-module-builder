@@ -1,6 +1,6 @@
 {
   "name": "neuron-builder",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Wrap commonjs module/1.0 javascript files for [cortex](http://github.com/kaelzhang/cortex)",
   "main": "index.js",
   "scripts": {
@@ -8,7 +8,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git@github.com:cortexjs/node-neuron-builder.git"
+    "url": "git@github.com:cortexjs/neuron-builder.git"
   },
   "keywords": [
     "neuron-builder"
@@ -19,7 +19,7 @@
   "author": "kael",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/cortexjs/node-neuron-builder/issues"
+    "url": "https://github.com/cortexjs/neuron-builder/issues"
   },
   "devDependencies": {
     "mocha": "^1.18.2",
