@@ -3,13 +3,14 @@ var fs = require('fs');
 var path = require('path');
 var util = require('util');
 var async = require('async');
+var path = require('path');
+
 
 var Parser = function(){};
 
 Parser.prototype.parse = function(filepath,opt,callback){
     var self = this;
     var resolved = {};
-    var mainEntry = opt.mainEntry;
     var pkg = opt.pkg;
     var targetVersion = opt.targetVersion;
     var allowNotInstalled = opt.allowNotInstalled;
@@ -122,7 +123,13 @@ Parser.prototype.generateModuleOptions = function(mod){
         module_options.asyncDeps = asyncDeps;
     }
 
-    if(mod.isEntryPoint && mod.id === path.join(cwd, pkg.main || "index.js")){
+    var entryFile = pkg.main ?
+        (path.extname(pkg.main) == "")
+            ? (pkg.main + ".js")
+            : pkg.main
+        : "index.js";
+
+    if(mod.isEntryPoint && mod.id === path.join(cwd, entryFile)){
         module_options.main = true;
     }
 

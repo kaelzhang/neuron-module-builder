@@ -1,7 +1,7 @@
 {
   "name":"test-module",
   "version":"0.1.0",
-  "main":"input.js",
+  "main":"input",
   "dependencies": {
     "a": "0.0.1"
   },
