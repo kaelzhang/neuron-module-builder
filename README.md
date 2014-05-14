@@ -2,7 +2,7 @@
 
 ## API
 
-### builder.parse(file, option, callback)
+### build(file, option, callback)
 
 #### arguments
 - file: the parsing file

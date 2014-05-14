@@ -167,9 +167,7 @@ Parser.prototype.resolveDependencies = function(mod){
 }
 
 
-module.exports = {
-    parse: function(filepath,opt,callback){
-        var parser = new Parser();
-        parser.parse(filepath,opt,callback);
-    }
+module.exports = function(filepath,opt,callback){
+    var parser = new Parser();
+    parser.parse(filepath,opt,callback);
 }

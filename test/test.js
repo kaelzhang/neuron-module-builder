@@ -1,7 +1,7 @@
 var assert = require('assert');
 var path = require('path');
 var fs = require('fs');
-var parser = require('../');
+var build = require('../');
 var jf = require('jsonfile');
 var expect = require('chai').expect;
 require('should');
@@ -18,7 +18,7 @@ describe("parse()", function(){
     it('simple test', function(done) {
         var filepath = path.resolve('test/fixtures/input.js');
 
-        parser.parse( filepath, configs, function(err, contents){
+        build( filepath, configs, function(err, contents){
             var actual = contents.toString();
             var expect = fs.readFileSync('test/expected/output.js','utf-8');
             actual.should.equal(expect);
@@ -29,7 +29,7 @@ describe("parse()", function(){
     it('version not specified', function(done) {
         var filepath = path.resolve('test/fixtures/version-not-specified.js');
 
-        parser.parse( filepath, configs, function(err, contents){
+        build( filepath, configs, function(err, contents){
             expect(/Explicit version of dependency \".*\" has not defined in package\.json/.test(err.message)).to.be.true;
             done();
         });
@@ -39,7 +39,7 @@ describe("parse()", function(){
     it('file not exists', function(done) {
         var filepath = path.resolve('test/fixtures/file-not-exists.js');
 
-        parser.parse( filepath, configs, function(err, contents){
+        build( filepath, configs, function(err, contents){
             expect(err).to.not.be.null;
             expect(err.message.match("Error reading module")).to.not.be.null;
             done();
@@ -49,7 +49,7 @@ describe("parse()", function(){
     it('file out of entry directory', function(done) {
         var filepath = path.resolve('test/fixtures/file-out-of-entry-dir.js');
 
-        parser.parse( filepath, configs, function(err, contents){
+        build( filepath, configs, function(err, contents){
             expect(err).to.not.be.null;
             done();
         });
@@ -59,7 +59,7 @@ describe("parse()", function(){
     it('not fail for self mod', function(done) {
         var filepath = path.resolve('test/fixtures/contain-self.js');
 
-        parser.parse( filepath, {
+        build( filepath, {
             pkg : jf.readFileSync("test/fixtures/mixed_package.json"),
             targetVersion : "latest",
             cwd : path.resolve("./test/fixtures"),
@@ -74,7 +74,7 @@ describe("parse()", function(){
     it('main option', function(done) {
         var filepath = path.resolve('test/fixtures/not-main-entry.js');
 
-        parser.parse( filepath, {
+        build( filepath, {
             pkg : jf.readFileSync("test/fixtures/mixed_package.json"),
             targetVersion : "latest",
             cwd : path.resolve("./test/fixtures"),
