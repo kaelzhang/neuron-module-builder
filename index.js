@@ -147,7 +147,7 @@ Parser.prototype.resolveDependencies = function(mod){
         var resolved;
 
         if(self.isExternalDep(mod)){
-            var version = pkg.dependencies[mod] || (pkg.devDependencies && pkg.devDependencies[mod]);
+            var version = (pkg.dependencies && pkg.dependencies[mod]) || (pkg.devDependencies && pkg.devDependencies[mod]);
             if(!version && opt.allowNotInstalled){
                 version = "latest";
             }
