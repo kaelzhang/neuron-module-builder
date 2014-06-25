@@ -55,22 +55,6 @@ describe("parse()", function(){
         });
     });
 
-
-    it('not fail for self mod', function(done) {
-        var filepath = path.resolve('test/fixtures/contain-self.js');
-
-        build( filepath, {
-            pkg : jf.readFileSync("test/fixtures/mixed_package.json"),
-            targetVersion : "latest",
-            cwd : path.resolve("./test/fixtures"),
-            allowNotInstalled: true
-        }, function(err, contents){
-            expect(err).to.be.null;
-            done();
-        });
-    });
-
-
     it('main option', function(done) {
         var filepath = path.resolve('test/fixtures/not-main-entry.js');
 

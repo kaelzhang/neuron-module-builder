@@ -148,16 +148,9 @@ Parser.prototype.resolveDependencies = function(mod){
 
         if(self.isExternalDep(mod)){
             var version = (pkg.dependencies && pkg.dependencies[mod]) || (pkg.devDependencies && pkg.devDependencies[mod]);
-            if(!version && opt.allowNotInstalled){
-                version = "latest";
-            }
             if(!version){
                 throw new Error(util.format('Explicit version of dependency "%s" has not defined in package.json. Use "cortex install %s --save. file: %s',mod,mod,file));
             }
-
-            version = version === '*'
-              ? 'latest'
-              : version;
               
             resolved = mod + '@' + version;
 
