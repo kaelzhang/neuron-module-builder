@@ -22,8 +22,8 @@ console.log(1);
         "c@0.0.3"
     ]
 });
-define("test-module@0.1.0/input", ["a@0.0.1","b@0.0.2","./c","./d"], function(require, exports, module) {
-var a = require("a");
+define("test-module@0.1.0/input-with-uppercase", ["AA@0.0.1","b@0.0.2","./c","./d"], function(require, exports, module) {
+var a = require("AA");
 var b = require("b");
 var c = require("./c");
 var d = require("./d");
@@ -31,5 +31,8 @@ var d = require("./d");
     "asyncDeps": [
         "c@0.0.3"
     ],
-    "main": true
+    "main": true,
+    "alias": {
+        "aa@0.0.1": "AA@0.0.1"
+    }
 });

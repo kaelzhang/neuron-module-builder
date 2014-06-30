@@ -1,0 +1,15 @@
+{
+  "name":"test-module",
+  "version":"0.1.0",
+  "main":"input-with-uppercase",
+  "dependencies": {
+    "AA": "0.0.1"
+  },
+  "devDependencies":{
+    "b": "0.0.2"
+  },
+  "asyncDependencies": {
+    "c": "0.0.3"
+  },
+  "entries":["input.js","c.js","d.js","folder/child.js"]
+}

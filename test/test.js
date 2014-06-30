@@ -3,6 +3,7 @@ var path = require('path');
 var fs = require('fs');
 var build = require('../');
 var jf = require('jsonfile');
+var _ = require('underscore');
 var expect = require('chai').expect;
 require('should');
 
@@ -10,8 +11,7 @@ require('should');
 describe("parse()", function(){
 
     var configs = {
-        pkg : jf.readFileSync("test/fixtures/mixed_package.json"),
-        targetVersion : "latest",
+        pkg : jf.readFileSync("test/fixtures/mixed_package.json"), 
         cwd : path.resolve("./test/fixtures")
     };
 
@@ -26,6 +26,20 @@ describe("parse()", function(){
         });
     });
     
+    it('simple test with upppercase', function(done) {
+        var filepath = path.resolve('test/fixtures/input-with-uppercase.js');
+        var cfg = _.extend({},configs);
+        cfg.pkg = jf.readFileSync("test/fixtures/mixed-package-with-uppercase.json");
+
+        build( filepath, cfg, function(err, contents){
+            var actual = contents.toString();
+            var expect = fs.readFileSync('test/expected/output-with-uppercase.js','utf-8');
+            actual.should.equal(expect);
+            done();
+        });
+    });
+    
+
     it('version not specified', function(done) {
         var filepath = path.resolve('test/fixtures/version-not-specified.js');
 
@@ -60,7 +74,6 @@ describe("parse()", function(){
 
         build( filepath, {
             pkg : jf.readFileSync("test/fixtures/mixed_package.json"),
-            targetVersion : "latest",
             cwd : path.resolve("./test/fixtures"),
             allowNotInstalled: true
         }, function(err, contents){

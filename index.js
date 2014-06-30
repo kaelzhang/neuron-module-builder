@@ -55,6 +55,11 @@ Parser.prototype.generateWrapingCode = function(mod, done){
     var main_id = [pkg.name, opt.targetVersion || pkg.version].join("@");
     var filepath = mod.id;
     var deps;
+    try{
+        deps = this.resolvedDependencies = this.resolveDependencies(mod);
+    }catch(e){
+        return done(e);
+    }
     var module_options = this.generateModuleOptions(mod);
     var id = this.generateId(filepath, main_id);
     var code = mod.code.toString().replace();
@@ -62,12 +67,7 @@ Parser.prototype.generateWrapingCode = function(mod, done){
         + "%s\n"
     +"}, %s);";
 
-    try{
-        deps = this.resolveDependencies(mod);
-    }catch(e){
-        return done(e);
-    }
-
+    
 
 
     var result = util.format(tpl,
@@ -133,8 +133,26 @@ Parser.prototype.generateModuleOptions = function(mod){
         module_options.main = true;
     }
 
+    var alias = this.generateAlias();
+    if(Object.keys(alias).length){
+        module_options.alias = alias;
+    }
+
+
     return module_options;
 }
+
+Parser.prototype.generateAlias = function() {
+    var deps = this.resolvedDependencies;
+    var result = {};
+    deps.forEach(function(dep){
+        var lowercase = dep.toLowerCase();
+        if(lowercase !== dep){
+            result[lowercase] = dep;
+        }
+    });
+    return result;
+};
 
 Parser.prototype.resolveDependencies = function(mod){
     var self = this;
