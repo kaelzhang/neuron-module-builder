@@ -1,190 +1,289 @@
-var walker = require('commonjs-walker');
+"use strict";
 var fs = require('fs');
 var path = require('path');
 var util = require('util');
 var async = require('async');
 var path = require('path');
+var _ = require('underscore');
 
-
-var Parser = function(){};
-
-Parser.prototype.parse = function(filepath,opt,callback){
-    var self = this;
-    var resolved = {};
-    var pkg = opt.pkg;
-    var targetVersion = opt.targetVersion;
-    var allowNotInstalled = opt.allowNotInstalled;
-
+var Parser = function (opt) {
+    this._uuid = 0;
 
     this.opt = opt;
     this.cwd = opt.cwd;
     this.pkg = opt.pkg;
+    this.locals = {};
 
-    walker(filepath, {}, function(err, tree, nodes){
-        if(err){
-            return callback(err);
-        }
+    var asyncDepRef = this.pkg.asyncDependencies || {};
 
-        var result;
-
-            var codes = Object.keys(nodes).map(function(key){
-                return nodes[key];
-            }).filter(function(mod){
-                return !mod.isForeign;
-            }).sort(function(a,b){
-                return a.isEntryPoint ? 1 : -1;
-            });
-
-
-            async.map(codes, function(mod, done){
-                self.generateWrapingCode(mod, done);    
-            }, function(err, results){
-                if(err){
-                    return callback(err);
-                }else{
-                    callback(null, results.join("\n"));
-                }
-            });
+    this.asyncDeps = Object.keys(asyncDepRef).map(function (name) {
+        var version = asyncDepRef[name];
+        return [name, version].join("@");
     });
+};
+
+Parser.prototype.parse = function (filepath, callback) {
+    var self = this;
+    var resolved = {};
+    var pkg = this.pkg;
+    var locals = this.locals;
+
+    async.waterfall([
+
+        function (done) {
+            this._getDeps(filepath, done);
+        },
+        this._resolveDeps,
+        this._generateCode
+    ], callback);
 }
 
+Parser.prototype._resolveDeps = function (nodes, callback) {
+    var codes = {};
+    var resolveErrors = [];
+    for (var id in nodes) {
+        var mod = nodes[id];
+        if (mod.foreign) {
+            continue;
+        }
 
-Parser.prototype.generateWrapingCode = function(mod, done){
+        try {
+            mod.resolved = this._resolveModuleDependencies(id, mod);
+        } catch (e) {
+            resolveErrors.push(e);
+        }
+
+        if (resolveErrors.length) {
+            return callback(resolveErrors[0]);
+        }
+
+        codes[id] = mod;
+    }
+
+
+    callback(null, codes);
+};
+
+Parser.prototype._generateCode = function (codes, callback) {
+    var self = this;
+    var locals = this.locals;
+    var code = _.keys(codes).map(function (id) {
+        var mod = codes[id];
+        return self._wrapping(id, mod);
+    }).join("\n");
+    var template = "(function(){\n" + "<%= locals %>" + "<%= asyncDeps %>" + "<%= code %>" + "})()";
+
+    locals = _.keys(locals).map(function (v) {
+        return locals[v] + '="' + v + '"';
+    }).join(",");
+    locals = locals ? ('var ' + locals + ';\n') : '';
+
+    var asyncDeps = this.asyncDeps;
+    asyncDeps = asyncDeps.length ? ('var asyncDeps=' + JSON.stringify(asyncDeps) + ';\n') : '';
+
+    code = _.template(template)({
+        locals: locals,
+        asyncDeps: asyncDeps,
+        code: code
+    });
+
+    callback(null, code);
+}
+
+Parser.prototype._getDeps = function (filepath, callback) {
+    var walker = require('commonjs-walker');
+    walker(filepath, walker.OPTIONS.BROWSER, function (err, nodes) {
+        callback(err, nodes);
+    });
+};
+
+Parser.prototype._wrapping = function (id, mod) {
+    var self = this;
     var pkg = this.pkg;
     var opt = this.opt;
-    var main_id = [pkg.name, opt.targetVersion || pkg.version].join("@");
-    var filepath = mod.id;
-    var deps;
-    try{
-        deps = this.resolvedDependencies = this.resolveDependencies(mod);
-    }catch(e){
-        return done(e);
-    }
-    var module_options = this.generateModuleOptions(mod);
-    var id = this.generateId(filepath, main_id);
+    var filepath = id;
+    var resolvedDeps = _.values(mod.resolved);
+    var module_options = this._generateModuleOptions(id, mod);
+    var id = this._generateId(filepath);
     var code = mod.code.toString().replace();
-    var tpl = "define(\"%s\", %s, function(require, exports, module) {\n"
-        + "%s\n"
-    +"}, %s);";
-
-    
+    var template = _.template("define(\"<%= id %>\", <%= deps %>, function(require, exports, module) {\n" + "<%= code %>\n" + "}<%= module_options ? module_options : '' %>);");
 
 
-    var result = util.format(tpl,
-        id,
-        JSON.stringify(deps),
-        code,
-        JSON.stringify(module_options,null,4)
-    );
-    done(null, result);
+    function optionsToString(module_options) {
+        var pairs = [];
+        for (var key in module_options) {
+            var value = module_options[key];
+            value = ({
+                "asyncDeps": "asyncDeps",
+                "alias": self._toLocals(value),
+                "main": "true"
+            })[key];
+
+            pairs.push(key + ":" + value);
+        }
+        return pairs.length ? (", {" + pairs.join(",") + "}") : "";
+    }
+
+    module_options = optionsToString(module_options);
+
+    var result = template({
+        id: id,
+        deps: this._toLocals(resolvedDeps),
+        code: path.extname(id) == ".json" ? ("module.exports = " + code) : code,
+        module_options: module_options
+    });
+
+    return result
 };
 
 
-Parser.prototype.generateId = function(filepath,main_id,cwd) {
+Parser.prototype._generateId = function (filepath) {
     // the exact identifier
     var cwd = this.cwd;
+    var pkg = this.pkg;
+    var main_id = [pkg.name, pkg.version].join("@");
     var relative_path = path.relative(cwd, filepath);
 
-    // -> 'folder/foo'
-    var relative_id = relative_path.replace(/\.js$/, '');
-
     // -> 'module@0.0.1/folder/foo'
-    var id = path.join(main_id, relative_id);
+    var id = path.join(main_id, relative_path);
     return id;
 }
 
 
-Parser.prototype.isExternalDep = function(str){
-    return ["../",".","/"].every(function(prefix){
+Parser.prototype._isExternalDep = function (str) {
+    return ["../", ".", "/"].every(function (prefix) {
         return str.indexOf(prefix) !== 0;
     });
 }
 
-Parser.prototype.outOfDir = function(dep, file){
+Parser.prototype._outOfDir = function (dep, file) {
     var cwd = this.cwd;
-    var mod_path = path.join( path.dirname(file), dep);
+    var mod_path = path.join(path.dirname(file), dep);
 
     return mod_path.indexOf(cwd) == -1;
 }
 
-
-Parser.prototype.generateModuleOptions = function(mod){
+Parser.prototype._generateModuleOptions = function (id, mod) {
     var self = this;
     var pkg = this.pkg;
     var cwd = this.cwd;
+    var asyncDeps = this.asyncDeps;
     var module_options = {};
-    var depRef = pkg.asyncDependencies || {};
-    var asyncDeps = Object.keys(depRef).map(function(name){
-        var version = depRef[name];
-        return [name,version].join("@");
-    });
-
-    if(asyncDeps.length){
-        module_options.asyncDeps = asyncDeps;
+    if (asyncDeps.length) {
+        module_options.asyncDeps = true;
     }
 
     var entryFile = pkg.main ?
-        (path.extname(pkg.main) == "")
-            ? (pkg.main + ".js")
-            : pkg.main
-        : "index.js";
+        (path.extname(pkg.main) == "") ? (pkg.main + ".js") : pkg.main : "index.js";
 
-    if(mod.isEntryPoint && mod.id === path.join(cwd, entryFile)){
+    if (mod.entry && id === path.join(cwd, entryFile)) {
         module_options.main = true;
     }
 
-    var alias = this.generateAlias();
-    if(Object.keys(alias).length){
+    var alias = this._generateAlias(id, mod);
+    console.log("alias", alias);
+    if (Object.keys(alias).length) {
         module_options.alias = alias;
     }
 
 
-    return module_options;
+    return _.keys(module_options).length ? module_options : null;
 }
 
-Parser.prototype.generateAlias = function() {
-    var deps = this.resolvedDependencies;
-    var result = {};
-    deps.forEach(function(dep){
-        var lowercase = dep.toLowerCase();
-        if(lowercase !== dep){
-            result[lowercase] = dep;
+Parser.prototype._generateAlias = function (id, mod) {
+    var self = this;
+    var resolved = mod.resolved;
+    var dependencies = mod.dependencies;
+    var resolvedDeps = _.keys(mod.resolved);
+    var alias = {};
+    resolvedDeps.forEach(function (dep) {
+        // to lower cases
+        var result = dep.toLowerCase();
+        // resolve dir
+        if (!self._isExternalDep(dep)) {
+            result = path.relative(path.dirname(id), dependencies[dep]);
+            if (result.indexOf(".") !== 0) {
+                result = "./" + result;
+            }
+
+            // if(result !== dep){
+            alias[dep] = result;
+            self._addLocals(result);
+            // }
         }
     });
-    return result;
+    return alias;
 };
 
-Parser.prototype.resolveDependencies = function(mod){
+Parser.prototype._resolveModuleDependencies = function (id, mod) {
     var self = this;
     var pkg = this.pkg;
     var cwd = this.cwd;
-    var file = mod.id;
-    var mods = mod.unresolvedDependencies;
-    return mods.map(function(mod){
+    var file = id;
+    var deps = mod.dependencies;
+
+    var resolvedDeps = {};
+    for (var mod in deps) {
+        var absolute_path = deps[mod];
         var opt = self.opt;
         var resolved;
 
-        if(self.isExternalDep(mod)){
+        if (self._isExternalDep(mod)) {
             var version = (pkg.dependencies && pkg.dependencies[mod]) || (pkg.devDependencies && pkg.devDependencies[mod]);
-            if(!version){
-                throw new Error(util.format('Explicit version of dependency "%s" has not defined in package.json. Use "cortex install %s --save. file: %s',mod,mod,file));
+            if (!version) {
+                throw new Error(util.format('Explicit version of dependency "%s" has not defined in package.json. Use "cortex install %s --save. file: %s', mod, mod, file));
             }
-              
+
             resolved = mod + '@' + version;
 
-        }else{
-            if(self.outOfDir(mod, file)){
-                throw new Error(util.format('Relative dependency "%s" out of main entry\'s directory. file: %s',mod,file));
+        } else {
+            if (self._outOfDir(mod, file)) {
+                throw new Error(util.format('Relative dependency "%s" out of main entry\'s directory. file: %s', mod, file));
             }
             resolved = mod;
         }
+        resolvedDeps[mod] = resolved;
+        self._addLocals(resolved);
+    }
 
-        return resolved;
-    });
+    return resolvedDeps;
+}
+
+Parser.prototype._addLocals = function (val) {
+    var locals = this.locals;
+    if (!locals[val]) {
+        locals[val] = "_" + this._uuid;
+        this._uuid++;
+    }
+}
+
+Parser.prototype._toLocals = function (obj) {
+    var locals = this.locals;
+
+    function toLocals(item) {
+        return locals[item] || null;
+    }
+
+    function notNull(item) {
+        return item !== null;
+    }
+
+    if (_.isArray(obj)) {
+        return '[' + obj.map(toLocals).filter(notNull).join(",") + ']'
+    };
+
+    if (_.isObject(obj)) {
+        return '{' + _.keys(obj).map(function (k) {
+            var value = toLocals(obj[k]);
+            return value ? ('"' + k + '"' + ':' + value) : null
+        }).filter(notNull).join(',') + '}';
+    }
 }
 
 
-module.exports = function(filepath,opt,callback){
-    var parser = new Parser();
-    parser.parse(filepath,opt,callback);
+module.exports = function (filepath, opt, callback) {
+    var parser = new Parser(opt);
+    parser.parse(filepath, callback);
 }
+
+module.exports.Parser = Parser;

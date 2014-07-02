@@ -28,8 +28,8 @@
     "should": "^3.3.1"
   },
   "dependencies": {
-    "commonjs-walker": "^1.0.3",
     "async": "^0.8.0",
-    "underscore": "^1.6.0"
+    "underscore": "^1.6.0",
+    "commonjs-walker": "~3.0.1"
   }
 }
