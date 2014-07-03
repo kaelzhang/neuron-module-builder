@@ -31,7 +31,7 @@ Parser.prototype.parse = function (filepath, callback) {
     async.waterfall([
 
         function (done) {
-            this._getDeps(filepath, done);
+            self._getDeps(filepath, done);
         },
         this._resolveDeps,
         this._generateCode
@@ -71,7 +71,7 @@ Parser.prototype._generateCode = function (codes, callback) {
         var mod = codes[id];
         return self._wrapping(id, mod);
     }).join("\n");
-    var template = "(function(){\n" + "<%= locals %>" + "<%= asyncDeps %>" + "<%= code %>" + "})()";
+    var template = "(function(){\n" + "<%= locals %>" + "<%= asyncDeps %>" + "<%= code %>" + "})();";
 
     locals = _.keys(locals).map(function (v) {
         return locals[v] + '="' + v + '"';
@@ -93,6 +93,7 @@ Parser.prototype._generateCode = function (codes, callback) {
 Parser.prototype._getDeps = function (filepath, callback) {
     var walker = require('commonjs-walker');
     walker(filepath, walker.OPTIONS.BROWSER, function (err, nodes) {
+        console.log(nodes);
         callback(err, nodes);
     });
 };
@@ -181,7 +182,6 @@ Parser.prototype._generateModuleOptions = function (id, mod) {
     }
 
     var alias = this._generateAlias(id, mod);
-    console.log("alias", alias);
     if (Object.keys(alias).length) {
         module_options.alias = alias;
     }
@@ -194,18 +194,18 @@ Parser.prototype._generateAlias = function (id, mod) {
     var self = this;
     var resolved = mod.resolved;
     var dependencies = mod.dependencies;
-    var resolvedDeps = _.keys(mod.resolved);
+    var resolvedDeps = _.keys(resolved);
     var alias = {};
     resolvedDeps.forEach(function (dep) {
         // to lower cases
-        var result = dep.toLowerCase();
         // resolve dir
+        var result;
         if (!self._isExternalDep(dep)) {
             result = path.relative(path.dirname(id), dependencies[dep]);
             if (result.indexOf(".") !== 0) {
                 result = "./" + result;
             }
-
+            result = result.toLowerCase();
             // if(result !== dep){
             alias[dep] = result;
             self._addLocals(result);
