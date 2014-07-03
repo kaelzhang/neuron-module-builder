@@ -77,6 +77,7 @@ beforeEach(function () {
         pkg: {
             "name": "mod",
             "version": "0.1.0",
+            "main":"index.js",
             "dependencies": {
                 "b": "0.2.0"
             },
@@ -126,6 +127,19 @@ describe("_toLocals", function () {
 
 describe("_resolveDeps()", function () {
     it('dependency not installed', function (done) {
+        var nodes = {
+            '/path/to/index.js': {
+                dependents: [],
+                entry: true,
+                dependencies: {
+                    './a': '/path/to/a/index.json',
+                    'b': 'b',
+                    'd': 'd',
+                    './c': '/path/to/c.js'
+                },
+                code: "var json = require('./a/index.json');var c = require('../c.js');"
+            }
+        };
         parser = new Parser({
             pkg: {
                 "name": "mod",
@@ -134,7 +148,27 @@ describe("_resolveDeps()", function () {
             cwd: "/path/to"
         });
         parser._resolveDeps(_.clone(nodes), function (err) {
-            expect(err.message).to.equal('Explicit version of dependency "b" has not defined in package.json. Use "cortex install b --save. file: /path/to/index.js');
+            expect(err.message).to.equal('Explicit version of dependency \"b\", \"d\" are not defined in package.json.\n Use \"cortex install b d --save\". file: /path/to/index.js');
+            done();
+        });
+    });
+
+    it('dependency out of entry\'s directory', function(done){
+        var nodes = {
+            '/path/to/index.js': {
+                dependents: [],
+                entry: true,
+                dependencies: {
+                    './a': '/path/to/a/index.json',
+                    'b': 'b',
+                    '../c': '/path/c.js'
+                },
+                code: "var json = require('./a/index.json');var c = require('../c.js');"
+            }
+        };
+        parser.pkg.dependencies = {};
+        parser._resolveDeps(_.clone(nodes), function (err) {
+            expect(err.message).to.equal('Relative dependency \"../c\" out of main entry\'s directory. file: /path/to/index.js');
             done();
         });
     });
@@ -147,9 +181,40 @@ describe("_resolveDeps()", function () {
     });
 });
 
+describe("_generateModuleOptions()", function(){
+    describe("options.main",function(){
+
+        // should neuron pill assure the `main` field is not a directory ?
+        // it("specified dir and match",function(){
+        //     var mod = {
+        //         entry: true
+        //     };
+        //     parser.pkg.main = "dir/"
+        //     var result = parser._generateModuleOptions("/path/to/dir/index.js", mod);
+        //     expect(result.main).to.be.true;
+        // });
+
+        it("specified but not match",function(){
+            var mod = {
+                entry: true
+            };
+            parser.pkg.main = "index.json"
+            var result = parser._generateModuleOptions("/path/to/index.js", mod);
+            expect(result.main).to.not.be.true;
+        });
+
+        it("properly",function(){
+            var mod = {
+                entry: true
+            };
+            var result = parser._generateModuleOptions("/path/to/index.js", mod);
+            expect(result.main).to.be.true;
+        });
+    });
+});
 
 describe("_generateAlias()", function () {
-    it.only('properly', function () {
+    it('properly', function () {
         parser.locals = _.clone(locals);
         var mod = {
             dependencies: {
@@ -184,39 +249,6 @@ describe("_resolveModuleDependencies()", function(){
     });
 });
 
-describe("_resolveDeps()", function () {
-    it('dependency not installed', function (done) {
-        parser = new Parser({
-            pkg: {
-                "name": "mod",
-                "version": "0.1.0"
-            },
-            cwd: "/path/to"
-        });
-        parser._resolveDeps(_.clone(nodes), function (err) {
-            expect(err.message).to.equal('Explicit version of dependency "b" has not defined in package.json. Use "cortex install b --save. file: /path/to/index.js');
-            done();
-        });
-    });
-
-    it('properly', function (done) {
-        parser = new Parser({
-            pkg: {
-                "name": "mod",
-                "version": "0.1.0",
-                "dependencies": {
-                    "b": "0.2.0"
-                }
-            },
-            cwd: "/path/to"
-        });
-        parser._resolveDeps(_.clone(nodes), function (err, mods) {
-            expect(mods).to.deep.equal(codes);
-            done();
-        });
-    });
-});
-
 describe("_generateCode()", function () {
     it('properly', function (done) {
         parser._resolveDeps(_.clone(nodes), function (err, codes) {
@@ -247,64 +279,6 @@ describe("parse()", function () {
             done();
         });
     });
-
-    // it('simple test with upppercase', function (done) {
-    //     var filepath = path.resolve('test/fixtures/input-with-uppercase.js');
-    //     var cfg = _.extend({}, configs);
-    //     cfg.pkg = jf.readFileSync("test/fixtures/mixed-package-with-uppercase.json");
-
-    //     build(filepath, cfg, function (err, contents) {
-    //         var actual = contents.toString();
-    //         var expect = fs.readFileSync('test/expected/output-with-uppercase.js', 'utf-8');
-    //         actual.should.equal(expect);
-    //         done();
-    //     });
-    // });
-
-
-    // it('version not specified', function (done) {
-    //     var filepath = path.resolve('test/fixtures/version-not-specified.js');
-
-    //     build(filepath, configs, function (err, contents) {
-    //         expect(/Explicit version of dependency \".*\" has not defined in package\.json/.test(err.message)).to.be.true;
-    //         done();
-    //     });
-    // });
-
-
-    // it('file not exists', function (done) {
-    //     var filepath = path.resolve('test/fixtures/file-not-exists.js');
-
-    //     build(filepath, configs, function (err, contents) {
-    //         expect(err).to.not.be.null;
-    //         expect(err.message.match("Error reading module")).to.not.be.null;
-    //         done();
-    //     });
-    // });
-
-    // it('file out of entry directory', function (done) {
-    //     var filepath = path.resolve('test/fixtures/file-out-of-entry-dir.js');
-
-    //     build(filepath, configs, function (err, contents) {
-    //         expect(err).to.not.be.null;
-    //         done();
-    //     });
-    // });
-
-    // it('main option', function (done) {
-    //     var filepath = path.resolve('test/fixtures/not-main-entry.js');
-
-    //     build(filepath, {
-    //         pkg: jf.readFileSync("test/fixtures/mixed_package.json"),
-    //         cwd: path.resolve("./test/fixtures")
-    //     }, function (err, contents) {
-    //         var actual = contents.toString();
-    //         var expect = fs.readFileSync('test/expected/not-main-entry.js', 'utf-8');
-    //         actual.should.equal(expect);
-    //         done();
-    //     });
-    // });
-
 });
 
 });

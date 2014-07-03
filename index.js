@@ -40,7 +40,7 @@ Parser.prototype.parse = function (filepath, callback) {
 
 Parser.prototype._resolveDeps = function (nodes, callback) {
     var codes = {};
-    var resolveErrors = [];
+    var errmsg = "";
     for (var id in nodes) {
         var mod = nodes[id];
         if (mod.foreign) {
@@ -50,13 +50,14 @@ Parser.prototype._resolveDeps = function (nodes, callback) {
         try {
             mod.resolved = this._resolveModuleDependencies(id, mod);
         } catch (e) {
-            resolveErrors.push(e);
+            if(e.code == "ENOTINSTALLED"){
+                errmsg = "Explicit version of dependency <%= deps.map(function(dep){return '\"' + dep + '\"'}).join(\", \") %> are not defined in package.json.\n Use \"cortex install <%= deps.join(' ') %> --save\". file: <%= file %>";
+            }else if(e.code == "EOUTENTRY"){
+                errmsg = "Relative dependency \"<%= deps[0] %>\" out of main entry\'s directory. file: <%= file %>";
+            }
+            e.file = id;
+            return callback(new Error(_.template(errmsg,e)));
         }
-
-        if (resolveErrors.length) {
-            return callback(resolveErrors[0]);
-        }
-
         codes[id] = mod;
     }
 
@@ -81,7 +82,7 @@ Parser.prototype._generateCode = function (codes, callback) {
     var asyncDeps = this.asyncDeps;
     asyncDeps = asyncDeps.length ? ('var asyncDeps=' + JSON.stringify(asyncDeps) + ';\n') : '';
 
-    code = _.template(template)({
+    code = _.template(template, {
         locals: locals,
         asyncDeps: asyncDeps,
         code: code
@@ -107,7 +108,7 @@ Parser.prototype._wrapping = function (id, mod) {
     var module_options = this._generateModuleOptions(id, mod);
     var id = this._generateId(filepath);
     var code = mod.code.toString().replace();
-    var template = _.template("define(\"<%= id %>\", <%= deps %>, function(require, exports, module) {\n" + "<%= code %>\n" + "}<%= module_options ? module_options : '' %>);");
+    var template ="define(\"<%= id %>\", <%= deps %>, function(require, exports, module) {\n" + "<%= code %>\n" + "}<%= module_options ? module_options : '' %>);";
 
 
     function optionsToString(module_options) {
@@ -127,7 +128,7 @@ Parser.prototype._wrapping = function (id, mod) {
 
     module_options = optionsToString(module_options);
 
-    var result = template({
+    var result = _.template(template, {
         id: id,
         deps: this._toLocals(resolvedDeps),
         code: path.extname(id) == ".json" ? ("module.exports = " + code) : code,
@@ -174,10 +175,7 @@ Parser.prototype._generateModuleOptions = function (id, mod) {
         module_options.asyncDeps = true;
     }
 
-    var entryFile = pkg.main ?
-        (path.extname(pkg.main) == "") ? (pkg.main + ".js") : pkg.main : "index.js";
-
-    if (mod.entry && id === path.join(cwd, entryFile)) {
+    if (mod.entry && id === path.join(cwd, pkg.main)) {
         module_options.main = true;
     }
 
@@ -219,9 +217,8 @@ Parser.prototype._resolveModuleDependencies = function (id, mod) {
     var self = this;
     var pkg = this.pkg;
     var cwd = this.cwd;
-    var file = id;
     var deps = mod.dependencies;
-
+    var notInstalled = [];
     var resolvedDeps = {};
     for (var mod in deps) {
         var absolute_path = deps[mod];
@@ -231,19 +228,28 @@ Parser.prototype._resolveModuleDependencies = function (id, mod) {
         if (self._isExternalDep(mod)) {
             var version = (pkg.dependencies && pkg.dependencies[mod]) || (pkg.devDependencies && pkg.devDependencies[mod]);
             if (!version) {
-                throw new Error(util.format('Explicit version of dependency "%s" has not defined in package.json. Use "cortex install %s --save. file: %s', mod, mod, file));
+                notInstalled.push(mod);
             }
-
             resolved = mod + '@' + version;
 
         } else {
-            if (self._outOfDir(mod, file)) {
-                throw new Error(util.format('Relative dependency "%s" out of main entry\'s directory. file: %s', mod, file));
+            if (self._outOfDir(mod, id)) {
+                throw {
+                    code: "EOUTENTRY",
+                    deps: [mod]
+                };
             }
             resolved = mod;
         }
         resolvedDeps[mod] = resolved;
         self._addLocals(resolved);
+    }
+
+    if(notInstalled.length){
+        throw {
+            code: "ENOTINSTALLED",
+            deps: notInstalled
+        }
     }
 
     return resolvedDeps;
