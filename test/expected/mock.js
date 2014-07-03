@@ -17,6 +17,7 @@ var json = require('./a/index.json');var c = require('./c.js');
 define("mod@0.1.0/a/index.json", [], function(require, exports, module) {
 module.exports = {"a":1}
 }, {
-    asyncDeps:asyncDeps
+    asyncDeps:asyncDeps,
+    map:asyncDepsToMix
 });
 })();

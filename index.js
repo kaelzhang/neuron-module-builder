@@ -139,7 +139,7 @@ Parser.prototype._wrapping = function (id, mod) {
             value = ({
                 "asyncDeps": "asyncDeps",
                 "entries": "entries",
-                "map": "mix(" + self._toLocals(value) + ", asyncDepsToMix)",
+                "map": _.keys(value).length ? ("mix(" + self._toLocals(value) + ", asyncDepsToMix)") : "asyncDepsToMix",
                 "main": "true"
             })[key];
 
@@ -207,9 +207,7 @@ Parser.prototype._generateModuleOptions = function (id, mod) {
     }
 
     var map = this._generateMap(id, mod);
-    if (Object.keys(map).length) {
-        module_options.map = map;
-    }
+    module_options.map = map;
 
 
     return _.keys(module_options).length ? module_options : null;

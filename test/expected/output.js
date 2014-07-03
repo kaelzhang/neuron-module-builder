@@ -35,13 +35,15 @@ module.exports = function(){
 };
 }, {
     asyncDeps:asyncDeps,
-    entries:entries
+    entries:entries,
+    map:asyncDepsToMix
 });
 
 define("test-module@0.1.0/folder/child.js", [], function(require, exports, module) {
 console.log(1);
 }, {
     asyncDeps:asyncDeps,
-    entries:entries
+    entries:entries,
+    map:asyncDepsToMix
 });
 })();
