@@ -133,7 +133,7 @@ Parser.prototype._wrapping = function (id, mod) {
     var module_options = this._generateModuleOptions(id, mod);
     var id = this._generateId(filepath);
     var code = mod.code.toString();
-    var template ="define(\"<%= id %>\", <%= deps %>, function(require, exports, module) {\n" 
+    var template ="define(\"<%= id %>\", <%= deps %>, function(require, exports, module, __filename, __dirname) {\n"
         + "<%= code %>\n" 
     + "}<%= module_options ? module_options : '' %>);";
 

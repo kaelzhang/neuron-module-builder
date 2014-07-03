@@ -9,7 +9,7 @@ var _5 = "b@0.0.2";
 var entries = [_0,_1,_2,_3];
 var asyncDeps = ["c@0.0.3"];
 var asyncDepsToMix = {"c":"c@0.0.3"};
-define("test-module@0.1.0/input.js", [_4,_5,_1,_2], function(require, exports, module) {
+define("test-module@0.1.0/input.js", [_4,_5,_1,_2], function(require, exports, module, __filename, __dirname) {
 var a = require("a");
 var b = require("b");
 var c = require("./c");
@@ -21,7 +21,7 @@ var d = require("./d");
     map:mix({"./c":_1,"./d":_2}, asyncDepsToMix)
 });
 
-define("test-module@0.1.0/c.js", [_3], function(require, exports, module) {
+define("test-module@0.1.0/c.js", [_3], function(require, exports, module, __filename, __dirname) {
 require("./folder/child");
 require.async("./d");
 }, {
@@ -30,7 +30,7 @@ require.async("./d");
     map:mix({"./folder/child":_3}, asyncDepsToMix)
 });
 
-define("test-module@0.1.0/d.js", [], function(require, exports, module) {
+define("test-module@0.1.0/d.js", [], function(require, exports, module, __filename, __dirname) {
 module.exports = function(){
     console.log("I'm d");
 };
@@ -40,7 +40,7 @@ module.exports = function(){
     map:asyncDepsToMix
 });
 
-define("test-module@0.1.0/folder/child.js", [], function(require, exports, module) {
+define("test-module@0.1.0/folder/child.js", [], function(require, exports, module, __filename, __dirname) {
 console.log(1);
 }, {
     asyncDeps:asyncDeps,
