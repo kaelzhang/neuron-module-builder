@@ -20,6 +20,12 @@ var Parser = function (opt) {
     this.asyncDepsToMix = {};
     this.asyncDeps = [];
 
+    this.entries = this.entries.map(function(entry){
+        entry = self._generateId(entry, true);
+        self._addLocals(entry);
+        return entry;
+    });
+
     _.keys(asyncDepRef).forEach(function (name) {
         var version = asyncDepRef[name];
         var id = [name, version].join("@");
@@ -87,8 +93,8 @@ Parser.prototype._generateCode = function (codes, callback) {
         + "<%= code %>\n" 
     + "})();";
     
-    function declareVarible(name, value){
-        var statement = 'var ' + name + ' = ' + JSON.stringify(value) + ';\n';
+    function declareVarible(name, value, raw){
+        var statement = 'var ' + name + ' = ' + (raw ? value : JSON.stringify(value)) + ';\n';
         if(value){
             variables.push(statement);
         }
@@ -98,7 +104,8 @@ Parser.prototype._generateCode = function (codes, callback) {
         declareVarible(locals[v],v);
     });
 
-    ["entries","asyncDeps","asyncDepsToMix"].forEach(function(name){
+    declareVarible("entries", this._toLocals(this.entries) ,true);
+    ["asyncDeps","asyncDepsToMix"].forEach(function(name){
         declareVarible(name, self[name]);
     });
 
