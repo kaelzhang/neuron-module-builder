@@ -56,9 +56,9 @@ var codes = {
         },
         code: 'var json = require(\'./a/index.json\');var c = require(\'./c.js\');',
         resolved: {
-            './a': './a',
+            './a': 'mod@0.1.0/a/index.json',
             b: 'b@0.2.0',
-            './c.js': './c.js'
+            './c.js': 'mod@0.1.0/c.js'
         }
     },
     '/path/to/a/index.json': {
@@ -184,16 +184,6 @@ describe("_resolveDeps()", function () {
 describe("_generateModuleOptions()", function(){
     describe("options.main",function(){
 
-        // should neuron pill assure the `main` field is not a directory ?
-        // it("specified dir and match",function(){
-        //     var mod = {
-        //         entry: true
-        //     };
-        //     parser.pkg.main = "dir/"
-        //     var result = parser._generateModuleOptions("/path/to/dir/index.js", mod);
-        //     expect(result.main).to.be.true;
-        // });
-
         it("specified but not match",function(){
             var mod = {
                 entry: true
@@ -213,7 +203,7 @@ describe("_generateModuleOptions()", function(){
     });
 });
 
-describe("_generateAlias()", function () {
+describe("_generateMap()", function () {
     it('properly', function () {
         parser.locals = _.clone(locals);
         var mod = {
@@ -229,10 +219,10 @@ describe("_generateAlias()", function () {
             }
         };
         var id = "/path/to/index.js"
-        var alias = parser._generateAlias(id, _.clone(mod));
-        expect(alias).to.deep.equal({
-            './A': './a/index.json',
-            './c.js': './c.js'
+        var map = parser._generateMap(id, _.clone(mod));
+        expect(map).to.deep.equal({
+            './A': 'mod@0.1.0/a/index.json',
+            './c.js': 'mod@0.1.0/c.js'
         });
     });
 });
@@ -245,12 +235,13 @@ describe("_resolveModuleDependencies()", function(){
                 "./A": "/path/to/A/index.json"
             }
         });
-        expect(result).to.deep.equal({ b: 'b@0.2.0', './A': './A' });
+        expect(result).to.deep.equal({ b: 'b@0.2.0', './A': 'mod@0.1.0/A/index.json' });
     });
 });
 
 describe("_generateCode()", function () {
     it('properly', function (done) {
+        parser.pkg.entries = ["./pages/list.js","./pages/detail.js"]
         parser._resolveDeps(_.clone(nodes), function (err, codes) {
             parser._generateCode(_.clone(codes), function (err, result) {
                 expect(result).to.equal(expectedResult);
@@ -272,10 +263,9 @@ describe("parse()", function () {
     it('simple test', function (done) {
         var filepath = fixture("input.js");
 
-        parser.parse(filepath, function (err, contents) {
-            var actual = contents.toString();
+        parser.parse(filepath, function (err, actual) {
             var out = fs.readFileSync( expected('output.js'), 'utf-8');
-            expect(actual).to.equal(expect);
+            expect(actual).to.equal(out);
             done();
         });
     });

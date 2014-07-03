@@ -7,18 +7,24 @@ var path = require('path');
 var _ = require('underscore');
 
 var Parser = function (opt) {
+    var self = this;
     this._uuid = 0;
-
     this.opt = opt;
     this.cwd = opt.cwd;
     this.pkg = opt.pkg;
     this.locals = {};
+    this.entries = this.pkg.entries || [];
+    this.asyncDependencies = this.pkg.asyncDependencies || {};
 
-    var asyncDepRef = this.pkg.asyncDependencies || {};
+    var asyncDepRef = this.asyncDependencies;
+    this.asyncDepsToMix = {};
+    this.asyncDeps = [];
 
-    this.asyncDeps = Object.keys(asyncDepRef).map(function (name) {
+    _.keys(asyncDepRef).forEach(function (name) {
         var version = asyncDepRef[name];
-        return [name, version].join("@");
+        var id = [name, version].join("@");
+        self.asyncDeps.push(id);
+        self.asyncDepsToMix[name] = id;
     });
 };
 
@@ -33,8 +39,8 @@ Parser.prototype.parse = function (filepath, callback) {
         function (done) {
             self._getDeps(filepath, done);
         },
-        this._resolveDeps,
-        this._generateCode
+        this._resolveDeps.bind(this),
+        this._generateCode.bind(this)
     ], callback);
 }
 
@@ -54,6 +60,8 @@ Parser.prototype._resolveDeps = function (nodes, callback) {
                 errmsg = "Explicit version of dependency <%= deps.map(function(dep){return '\"' + dep + '\"'}).join(\", \") %> are not defined in package.json.\n Use \"cortex install <%= deps.join(' ') %> --save\". file: <%= file %>";
             }else if(e.code == "EOUTENTRY"){
                 errmsg = "Relative dependency \"<%= deps[0] %>\" out of main entry\'s directory. file: <%= file %>";
+            }else{
+                errmsg = e.message;
             }
             e.file = id;
             return callback(new Error(_.template(errmsg,e)));
@@ -71,20 +79,31 @@ Parser.prototype._generateCode = function (codes, callback) {
     var code = _.keys(codes).map(function (id) {
         var mod = codes[id];
         return self._wrapping(id, mod);
-    }).join("\n");
-    var template = "(function(){\n" + "<%= locals %>" + "<%= asyncDeps %>" + "<%= code %>" + "})();";
+    }).join("\n\n");
+    var variables = [];
+    var template = "(function(){\n"
+        + "function mix(a,b){for(var k in b){a[k]=b[k]}}\n"
+        + "<%= variables %>"
+        + "<%= code %>\n" 
+    + "})();";
+    
+    function declareVarible(name, value){
+        var statement = 'var ' + name + ' = ' + JSON.stringify(value) + ';\n';
+        if(value){
+            variables.push(statement);
+        }
+    }
 
-    locals = _.keys(locals).map(function (v) {
-        return locals[v] + '="' + v + '"';
-    }).join(",");
-    locals = locals ? ('var ' + locals + ';\n') : '';
+    _.keys(locals).forEach(function (v) {
+        declareVarible(locals[v],v);
+    });
 
-    var asyncDeps = this.asyncDeps;
-    asyncDeps = asyncDeps.length ? ('var asyncDeps=' + JSON.stringify(asyncDeps) + ';\n') : '';
+    ["entries","asyncDeps","asyncDepsToMix"].forEach(function(name){
+        declareVarible(name, self[name]);
+    });
 
     code = _.template(template, {
-        locals: locals,
-        asyncDeps: asyncDeps,
+        variables: variables.join(""),
         code: code
     });
 
@@ -94,7 +113,6 @@ Parser.prototype._generateCode = function (codes, callback) {
 Parser.prototype._getDeps = function (filepath, callback) {
     var walker = require('commonjs-walker');
     walker(filepath, walker.OPTIONS.BROWSER, function (err, nodes) {
-        console.log(nodes);
         callback(err, nodes);
     });
 };
@@ -104,11 +122,14 @@ Parser.prototype._wrapping = function (id, mod) {
     var pkg = this.pkg;
     var opt = this.opt;
     var filepath = id;
+    var entries = this.entries;
     var resolvedDeps = _.values(mod.resolved);
     var module_options = this._generateModuleOptions(id, mod);
     var id = this._generateId(filepath);
-    var code = mod.code.toString().replace();
-    var template ="define(\"<%= id %>\", <%= deps %>, function(require, exports, module) {\n" + "<%= code %>\n" + "}<%= module_options ? module_options : '' %>);";
+    var code = mod.code.toString();
+    var template ="define(\"<%= id %>\", <%= deps %>, function(require, exports, module) {\n" 
+        + "<%= code %>\n" 
+    + "}<%= module_options ? module_options : '' %>);";
 
 
     function optionsToString(module_options) {
@@ -117,13 +138,14 @@ Parser.prototype._wrapping = function (id, mod) {
             var value = module_options[key];
             value = ({
                 "asyncDeps": "asyncDeps",
-                "alias": self._toLocals(value),
+                "entries": "entries",
+                "map": "mix(" + self._toLocals(value) + ", asyncDepsToMix)",
                 "main": "true"
             })[key];
 
             pairs.push(key + ":" + value);
         }
-        return pairs.length ? (", {" + pairs.join(",") + "}") : "";
+        return pairs.length ? (", {\n\t" + pairs.join(",\n\t") + "\n}").replace(/\t/g,"    "): "";
     }
 
     module_options = optionsToString(module_options);
@@ -139,12 +161,12 @@ Parser.prototype._wrapping = function (id, mod) {
 };
 
 
-Parser.prototype._generateId = function (filepath) {
+Parser.prototype._generateId = function (filepath, relative) {
     // the exact identifier
     var cwd = this.cwd;
     var pkg = this.pkg;
     var main_id = [pkg.name, pkg.version].join("@");
-    var relative_path = path.relative(cwd, filepath);
+    var relative_path = relative ? filepath : path.relative(cwd, filepath);
 
     // -> 'module@0.0.1/folder/foo'
     var id = path.join(main_id, relative_path);
@@ -169,31 +191,36 @@ Parser.prototype._generateModuleOptions = function (id, mod) {
     var self = this;
     var pkg = this.pkg;
     var cwd = this.cwd;
+    var entries = this.entries;
     var asyncDeps = this.asyncDeps;
     var module_options = {};
     if (asyncDeps.length) {
         module_options.asyncDeps = true;
     }
 
+    if (entries.length) {
+        module_options.entries = true;
+    }
+
     if (mod.entry && id === path.join(cwd, pkg.main)) {
         module_options.main = true;
     }
 
-    var alias = this._generateAlias(id, mod);
-    if (Object.keys(alias).length) {
-        module_options.alias = alias;
+    var map = this._generateMap(id, mod);
+    if (Object.keys(map).length) {
+        module_options.map = map;
     }
 
 
     return _.keys(module_options).length ? module_options : null;
 }
 
-Parser.prototype._generateAlias = function (id, mod) {
+Parser.prototype._generateMap = function (id, mod) {
     var self = this;
     var resolved = mod.resolved;
     var dependencies = mod.dependencies;
     var resolvedDeps = _.keys(resolved);
-    var alias = {};
+    var map = {};
     resolvedDeps.forEach(function (dep) {
         // to lower cases
         // resolve dir
@@ -205,12 +232,13 @@ Parser.prototype._generateAlias = function (id, mod) {
             }
             result = result.toLowerCase();
             // if(result !== dep){
-            alias[dep] = result;
+            result =  self._generateId( result, true );
+            map[dep] = result;
             self._addLocals(result);
             // }
         }
     });
-    return alias;
+    return map;
 };
 
 Parser.prototype._resolveModuleDependencies = function (id, mod) {
@@ -221,7 +249,6 @@ Parser.prototype._resolveModuleDependencies = function (id, mod) {
     var notInstalled = [];
     var resolvedDeps = {};
     for (var mod in deps) {
-        var absolute_path = deps[mod];
         var opt = self.opt;
         var resolved;
 
@@ -239,7 +266,7 @@ Parser.prototype._resolveModuleDependencies = function (id, mod) {
                     deps: [mod]
                 };
             }
-            resolved = mod;
+            resolved = self._generateId(deps[mod]);
         }
         resolvedDeps[mod] = resolved;
         self._addLocals(resolved);
