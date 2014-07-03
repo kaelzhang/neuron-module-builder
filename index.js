@@ -104,10 +104,9 @@ Parser.prototype._generateCode = function (codes, callback) {
         declareVarible(locals[v],v);
     });
 
-    declareVarible("entries", this._toLocals(this.entries) ,true);
-    ["asyncDeps","asyncDepsToMix"].forEach(function(name){
-        declareVarible(name, self[name]);
-    });
+    this.entries.length && declareVarible("entries", this._toLocals(this.entries) ,true);
+    this.asyncDeps.length && declareVarible("asyncDeps", this.asyncDeps);
+    declareVarible("asyncDepsToMix",this.asyncDepsToMix);
 
     code = _.template(template, {
         variables: variables.join(""),
