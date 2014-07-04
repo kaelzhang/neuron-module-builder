@@ -88,11 +88,11 @@ Parser.prototype._generateCode = function (codes, callback) {
     }).join("\n\n");
     var variables = [];
     var template = "(function(){\n"
-        + "function mix(a,b){for(var k in b){a[k]=b[k]}}\n"
+        + "function mix(a,b){for(var k in b){a[k]=b[k];return a;}}\n"
         + "<%= variables %>"
-        + "<%= code %>\n" 
+        + "<%= code %>\n"
     + "})();";
-    
+
     function declareVarible(name, value, raw){
         var statement = 'var ' + name + ' = ' + (raw ? value : JSON.stringify(value)) + ';\n';
         if(value){
@@ -141,7 +141,7 @@ Parser.prototype._wrapping = function (id, mod) {
     var id = this._generateId(filepath);
     var code = mod.code.toString();
     var template ="define(\"<%= id %>\", <%= deps %>, function(require, exports, module, __filename, __dirname) {\n"
-        + "<%= code %>\n" 
+        + "<%= code %>\n"
     + "}<%= module_options ? module_options : '' %>);";
 
 
