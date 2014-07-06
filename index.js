@@ -43,7 +43,7 @@ Parser.prototype.parse = function (filepath, callback) {
     async.waterfall([
 
         function (done) {
-            self._getDeps(filepath, done);
+            self._getDeps(filepath, pkg, done);
         },
         this._resolveDeps.bind(this),
         this._generateCode.bind(this)
@@ -116,9 +116,16 @@ Parser.prototype._generateCode = function (codes, callback) {
     callback(null, code);
 }
 
-Parser.prototype._getDeps = function (filepath, callback) {
+Parser.prototype._getDeps = function (filepath, pkg, callback) {
     var walker = require('commonjs-walker');
-    walker(filepath, walker.OPTIONS.BROWSER, function (err, nodes) {
+    walker(filepath, {
+      detectCyclic: true,
+      strictRequire: true,
+      allowAbsolutePath: false,
+      extensions: ['.js', '.json'],
+      'as': pkg['as'] || {}
+
+    }, function (err, nodes) {
         callback(err, nodes);
     });
 };
