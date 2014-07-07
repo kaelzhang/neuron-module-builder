@@ -153,6 +153,31 @@ describe("_resolveDeps()", function () {
         });
     });
 
+    it('alias not installed', function(done){
+        var nodes = {
+            '/path/to/index.js': {
+                dependents: [],
+                entry: true,
+                dependencies: {
+                    'z': 'y'
+                },
+                code: "var z = require('z')"
+            }
+        };
+        parser = new Parser({
+            pkg: {
+                "name": "mod",
+                "version": "0.1.0",
+                "dependencies": {}
+            },
+            cwd: "/path/to"
+        });
+        parser._resolveDeps(_.clone(nodes), function (err) {
+            expect(err.message).to.equal('Explicit version of dependency \"y\" are not defined in package.json.\n Use \"cortex install b d --save\". file: /path/to/index.js');
+            done();
+        });
+    })
+
     it('dependency out of entry\'s directory', function(done){
         var nodes = {
             '/path/to/index.js': {
@@ -234,6 +259,9 @@ describe("_resolveModuleDependencies()", function(){
                 "b": "b",
                 "./A": "/path/to/A/index.json"
             }
+        },{
+            "b":{foreign:true},
+            "/path/to/A/index.json":{}
         });
         expect(result).to.deep.equal({ b: 'b@0.2.0', './A': 'mod@0.1.0/a/index.json' });
     });
@@ -260,10 +288,23 @@ describe("parse()", function () {
         });
     });
 
-    it('simple test', function (done) {
+    it('parse not installed', function (done) {
+        var filepath = fixture("not-installed.js");
+        parser.pkg.as = {
+          "z": "y"
+        }
+        parser.parse(filepath, function (err, actual) {
+            expect(err.message).to.equal('Explicit version of dependency \"y\" is not defined in package.json.\n'
+                + ' Use \"cortex install y --save\". file: /Users/spud/Product/neuron-builder/test/fixtures/not-installed.js');
+            done();
+        });
+    });
+
+    it.only('simple test', function (done) {
         var filepath = fixture("input.js");
 
         parser.parse(filepath, function (err, actual) {
+            console.log(actual);
             var out = fs.readFileSync( expected('output.js'), 'utf-8');
             expect(actual).to.equal(out);
             done();

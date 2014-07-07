@@ -61,10 +61,10 @@ Parser.prototype._resolveDeps = function (nodes, callback) {
         }
 
         try {
-            mod.resolved = this._resolveModuleDependencies(id, mod);
+            mod.resolved = this._resolveModuleDependencies(id, mod, nodes);
         } catch (e) {
             if(e.code == "ENOTINSTALLED"){
-                errmsg = "Explicit version of dependency <%= deps.map(function(dep){return '\"' + dep + '\"'}).join(\", \") %> are not defined in package.json.\n Use \"cortex install <%= deps.join(' ') %> --save\". file: <%= file %>";
+                errmsg = "Explicit version of dependency <%= deps.map(function(dep){return '\"' + dep + '\"'}).join(\", \") %> <%= deps.length > 1 ? 'are' : 'is' %> not defined in package.json.\n Use \"cortex install <%= deps.join(' ') %> --save\". file: <%= file %>";
             }else if(e.code == "EOUTENTRY"){
                 errmsg = "Relative dependency \"<%= deps[0] %>\" out of main entry\'s directory. file: <%= file %>";
             }else{
@@ -240,53 +240,55 @@ Parser.prototype._generateMap = function (id, mod) {
         // to lower cases
         // resolve dir
         var result;
-        if (!self._isExternalDep(dep)) {
+        if (!dependencies[dep].foreign) {
             result = path.relative(path.dirname(id), dependencies[dep]);
             if (result.indexOf(".") !== 0) {
                 result = "./" + result;
             }
             result = result.toLowerCase();
-            // if(result !== dep){
+
             result =  self._generateId( result, true );
             map[dep] = result;
             self._addLocals(result);
-            // }
+
         }
     });
     return map;
 };
 
-Parser.prototype._resolveModuleDependencies = function (id, mod) {
+Parser.prototype._resolveModuleDependencies = function (id, mod, nodes) {
     var self = this;
     var pkg = this.pkg;
     var cwd = this.cwd;
     var deps = mod.dependencies;
     var notInstalled = [];
     var resolvedDeps = {};
-    for (var mod in deps) {
+
+    for (var module_name in deps) {
         var opt = self.opt;
         var resolved;
 
-        if (self._isExternalDep(mod)) {
-            var version = (pkg.dependencies && pkg.dependencies[mod]) || (pkg.devDependencies && pkg.devDependencies[mod]);
+        if (nodes[deps[module_name]].foreign) {
+            var version = (pkg.dependencies && pkg.dependencies[module_name]) || (pkg.devDependencies && pkg.devDependencies[module_name]);
             if (!version) {
-                notInstalled.push(mod);
+                notInstalled.push(deps[module_name]);
             }
-            resolved = mod + '@' + version;
+            resolved = module_name + '@' + version;
 
         } else {
-            if (self._outOfDir(mod, id)) {
+            if (self._outOfDir(module_name, id)) {
                 throw {
                     code: "EOUTENTRY",
-                    deps: [mod]
+                    deps: [module_name]
                 };
             }
-            resolved = self._generateId(deps[mod]);
+            resolved = self._generateId(deps[module_name]);
         }
-        resolvedDeps[mod] = resolved;
+        resolvedDeps[module_name] = resolved;
         self._addLocals(resolved);
     }
 
+    console.log("not Installed",notInstalled);
     if(notInstalled.length){
         throw {
             code: "ENOTINSTALLED",
