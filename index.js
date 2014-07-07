@@ -89,7 +89,7 @@ Parser.prototype._generateCode = function (codes, callback) {
     }).join("\n\n");
     var variables = [];
     var template = "(function(){\n"
-        + "function mix(a,b){for(var k in b){a[k]=b[k];return a;}}\n"
+        + "function mix(a,b){for(var k in b){a[k]=b[k]}return a}\n"
         + "<%= variables %>"
         + "<%= code %>\n"
     + "})();";
