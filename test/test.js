@@ -235,7 +235,7 @@ describe("_resolveModuleDependencies()", function(){
                 "./A": "/path/to/A/index.json"
             }
         });
-        expect(result).to.deep.equal({ b: 'b@0.2.0', './A': 'mod@0.1.0/A/index.json' });
+        expect(result).to.deep.equal({ b: 'b@0.2.0', './A': 'mod@0.1.0/a/index.json' });
     });
 });
 

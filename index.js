@@ -31,6 +31,7 @@ var Parser = function (opt) {
         var id = [name, version].join("@");
         self.asyncDeps.push(id);
         self.asyncDepsToMix[name] = id;
+        self._addLocals(id);
     });
 };
 
@@ -104,9 +105,10 @@ Parser.prototype._generateCode = function (codes, callback) {
         declareVarible(locals[v],v);
     });
 
-    this.entries.length && declareVarible("entries", this._toLocals(this.entries) ,true);
-    this.asyncDeps.length && declareVarible("asyncDeps", this.asyncDeps);
-    declareVarible("asyncDepsToMix",this.asyncDepsToMix);
+    ["entries","asyncDeps","asyncDepsToMix"].forEach(function(key){
+        var value = self[key];
+        (key == "asyncDepsToMix" || value.length) && declareVarible(key, self._toLocals(value) ,true);
+    });
 
     code = _.template(template, {
         variables: variables.join(""),
@@ -140,10 +142,9 @@ Parser.prototype._wrapping = function (id, mod) {
     var module_options = this._generateModuleOptions(id, mod);
     var id = this._generateId(filepath);
     var code = mod.code.toString();
-    var template ="define(\"<%= id %>\", <%= deps %>, function(require, exports, module, __filename, __dirname) {\n"
+    var template ="define(<%= id %>, <%= deps %>, function(require, exports, module, __filename, __dirname) {\n"
         + "<%= code %>\n"
     + "}<%= module_options ? module_options : '' %>);";
-
 
     function optionsToString(module_options) {
         var pairs = [];
@@ -164,7 +165,7 @@ Parser.prototype._wrapping = function (id, mod) {
     module_options = optionsToString(module_options);
 
     var result = _.template(template, {
-        id: id,
+        id: self._toLocals(id),
         deps: this._toLocals(resolvedDeps),
         code: path.extname(id) == ".json" ? ("module.exports = " + code) : code,
         module_options: module_options
@@ -183,6 +184,8 @@ Parser.prototype._generateId = function (filepath, relative) {
 
     // -> 'module@0.0.1/folder/foo'
     var id = path.join(main_id, relative_path);
+    id = id.toLowerCase();
+    this._addLocals(id);
     return id;
 }
 
@@ -310,6 +313,9 @@ Parser.prototype._toLocals = function (obj) {
 
     function notNull(item) {
         return item !== null;
+    }
+    if(_.isString(obj)){
+        return toLocals(obj);
     }
 
     if (_.isArray(obj)) {
