@@ -44,7 +44,7 @@ Parser.prototype.parse = function (filepath, callback) {
     async.waterfall([
 
         function (done) {
-            self._getDeps(filepath, pkg, done);
+            self._getDeps(filepath, done);
         },
         this._resolveDeps.bind(this),
         this._generateCode.bind(this)
@@ -118,8 +118,9 @@ Parser.prototype._generateCode = function (codes, callback) {
     callback(null, code);
 }
 
-Parser.prototype._getDeps = function (filepath, pkg, callback) {
+Parser.prototype._getDeps = function (filepath, callback) {
     var walker = require('commonjs-walker');
+    var pkg = this.pkg;
     walker(filepath, {
       detectCyclic: true,
       strictRequire: true,
