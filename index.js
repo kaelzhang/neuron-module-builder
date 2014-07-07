@@ -111,7 +111,7 @@ Parser.prototype._generateCode = function (codes, callback) {
         var value = self[key];
         (key == "asyncDepsToMix" || value.length) && declareVarible(key, self._toLocals(value), true);
     });
-    declareVarible("globalMap","mix(" + self._toLocals(self.globalMap) + ",asyncDepsToMix);", true)
+    declareVarible("globalMap","mix(" + self._toLocals(self.globalMap) + ",asyncDepsToMix)", true)
     code = _.template(template, {
         variables: variables.join(""),
         code: code
@@ -284,11 +284,11 @@ Parser.prototype._resolveModuleDependencies = function (id, mod) {
     for (var module_name in deps) {
         var opt = self.opt;
         var resolved;
-        if (self._isForeign(deps[module_name])) {
-
-            resolved = self._resolveForeignDependency(module_name);
+        var realDependency = deps[module_name];
+        if (self._isForeign(realDependency)) {
+            resolved = self._resolveForeignDependency(realDependency);
             if (!resolved) {
-                notInstalled.push(deps[module_name]);
+                notInstalled.push(realDependency);
             }
 
         } else {
