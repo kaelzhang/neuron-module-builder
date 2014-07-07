@@ -246,12 +246,8 @@ Parser.prototype._generateMap = function (id, mod) {
         var realDependency = dependencies[dep];
 
         if (!self._isForeign(realDependency)) {
-            result = path.relative(path.dirname(id), realDependency);
-            if (result.indexOf(".") !== 0) {
-                result = "./" + result;
-            }
-            result = result.toLowerCase();
-            result =  self._generateId(result, true );
+            result = realDependency.toLowerCase();
+            result = self._generateId(realDependency);
         }else if(as[dep]){
             result = self._resolveForeignDependency(realDependency);
             self.globalMap[realDependency] = result;
