@@ -18,6 +18,7 @@ var Parser = function (opt) {
 
     var asyncDepRef = this.asyncDependencies;
     this.asyncDepsToMix = {};
+    this.globalMap = {};
     this.asyncDeps = [];
 
     this.entries = this.entries.map(function(entry){
@@ -52,6 +53,7 @@ Parser.prototype.parse = function (filepath, callback) {
 }
 
 Parser.prototype._resolveDeps = function (nodes, callback) {
+    this.nodes = nodes;
     var codes = {};
     var errmsg = "";
     for (var id in nodes) {
@@ -61,7 +63,7 @@ Parser.prototype._resolveDeps = function (nodes, callback) {
         }
 
         try {
-            mod.resolved = this._resolveModuleDependencies(id, mod, nodes);
+            mod.resolved = this._resolveModuleDependencies(id, mod);
         } catch (e) {
             if(e.code == "ENOTINSTALLED"){
                 errmsg = "Explicit version of dependency <%= deps.map(function(dep){return '\"' + dep + '\"'}).join(\", \") %> <%= deps.length > 1 ? 'are' : 'is' %> not defined in package.json.\n Use \"cortex install <%= deps.join(' ') %> --save\". file: <%= file %>";
@@ -89,7 +91,7 @@ Parser.prototype._generateCode = function (codes, callback) {
     }).join("\n\n");
     var variables = [];
     var template = "(function(){\n"
-        + "function mix(a,b){for(var k in b){a[k]=b[k]}return a}\n"
+        + "function mix(a,b){for(var k in b){a[k]=b[k];}return a;}\n"
         + "<%= variables %>"
         + "<%= code %>\n"
     + "})();";
@@ -107,9 +109,9 @@ Parser.prototype._generateCode = function (codes, callback) {
 
     ["entries","asyncDeps","asyncDepsToMix"].forEach(function(key){
         var value = self[key];
-        (key == "asyncDepsToMix" || value.length) && declareVarible(key, self._toLocals(value) ,true);
+        (key == "asyncDepsToMix" || value.length) && declareVarible(key, self._toLocals(value), true);
     });
-
+    declareVarible("globalMap","mix(" + self._toLocals(self.globalMap) + ",asyncDepsToMix);", true)
     code = _.template(template, {
         variables: variables.join(""),
         code: code
@@ -119,6 +121,7 @@ Parser.prototype._generateCode = function (codes, callback) {
 }
 
 Parser.prototype._getDeps = function (filepath, callback) {
+    var self = this;
     var walker = require('commonjs-walker');
     var pkg = this.pkg;
     walker(filepath, {
@@ -128,9 +131,7 @@ Parser.prototype._getDeps = function (filepath, callback) {
       extensions: ['.js', '.json'],
       'as': pkg['as'] || {}
 
-    }, function (err, nodes) {
-        callback(err, nodes);
-    });
+    }, callback);
 };
 
 Parser.prototype._wrapping = function (id, mod) {
@@ -154,7 +155,7 @@ Parser.prototype._wrapping = function (id, mod) {
             value = ({
                 "asyncDeps": "asyncDeps",
                 "entries": "entries",
-                "map": _.keys(value).length ? ("mix(" + self._toLocals(value) + ", asyncDepsToMix)") : "asyncDepsToMix",
+                "map": _.keys(value).length ? ("mix(globalMap," + self._toLocals(value) + ")") : "globalMap",
                 "main": "true"
             })[key];
 
@@ -191,7 +192,7 @@ Parser.prototype._generateId = function (filepath, relative) {
 }
 
 
-Parser.prototype._isExternalDep = function (str) {
+Parser.prototype._isForeign = function (str) {
     return ["../", ".", "/"].every(function (prefix) {
         return str.indexOf(prefix) !== 0;
     });
@@ -219,7 +220,7 @@ Parser.prototype._generateModuleOptions = function (id, mod) {
         module_options.entries = true;
     }
 
-    if (mod.entry && id === path.join(cwd, pkg.main)) {
+    if (pkg.main && mod.entry && id === path.join(cwd, pkg.main)) {
         module_options.main = true;
     }
 
@@ -236,27 +237,47 @@ Parser.prototype._generateMap = function (id, mod) {
     var dependencies = mod.dependencies;
     var resolvedDeps = _.keys(resolved);
     var map = {};
+    var nodes = this.nodes;
+    var as = this.pkg.as || {};
     resolvedDeps.forEach(function (dep) {
         // to lower cases
         // resolve dir
         var result;
-        if (!dependencies[dep].foreign) {
-            result = path.relative(path.dirname(id), dependencies[dep]);
+        var realDependency = dependencies[dep];
+
+        if (!self._isForeign(realDependency)) {
+            result = path.relative(path.dirname(id), realDependency);
             if (result.indexOf(".") !== 0) {
                 result = "./" + result;
             }
             result = result.toLowerCase();
+            result =  self._generateId(result, true );
+        }else if(as[dep]){
+            result = self._resolveForeignDependency(realDependency);
+            self.globalMap[realDependency] = result;
+        }
 
-            result =  self._generateId( result, true );
+        if(result){
             map[dep] = result;
             self._addLocals(result);
-
         }
     });
     return map;
 };
 
-Parser.prototype._resolveModuleDependencies = function (id, mod, nodes) {
+Parser.prototype._resolveForeignDependency = function(module_name) {
+    var pkg = this.pkg;
+    var deps = ["dependencies","asyncDependencies","devDependencies"];
+    for(var i = 0 ; i < deps.length; i++){
+        var dep = deps[i];
+        if(pkg[dep] && pkg[dep][module_name]){
+            return module_name + "@" + pkg[dep][module_name];
+        }
+    }
+    return false;
+};
+
+Parser.prototype._resolveModuleDependencies = function (id, mod) {
     var self = this;
     var pkg = this.pkg;
     var cwd = this.cwd;
@@ -267,13 +288,12 @@ Parser.prototype._resolveModuleDependencies = function (id, mod, nodes) {
     for (var module_name in deps) {
         var opt = self.opt;
         var resolved;
+        if (self._isForeign(deps[module_name])) {
 
-        if (nodes[deps[module_name]].foreign) {
-            var version = (pkg.dependencies && pkg.dependencies[module_name]) || (pkg.devDependencies && pkg.devDependencies[module_name]);
-            if (!version) {
+            resolved = self._resolveForeignDependency(module_name);
+            if (!resolved) {
                 notInstalled.push(deps[module_name]);
             }
-            resolved = module_name + '@' + version;
 
         } else {
             if (self._outOfDir(module_name, id)) {
@@ -288,7 +308,6 @@ Parser.prototype._resolveModuleDependencies = function (id, mod, nodes) {
         self._addLocals(resolved);
     }
 
-    console.log("not Installed",notInstalled);
     if(notInstalled.length){
         throw {
             code: "ENOTINSTALLED",

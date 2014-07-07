@@ -42,6 +42,9 @@ var nodes = {
         dependents: [
             '/path/to/index.js'
         ]
+    },
+    '/path/to/c.js':{
+        code: 'module.exports = "c"'
     }
 };
 
@@ -60,6 +63,10 @@ var codes = {
             b: 'b@0.2.0',
             './c.js': 'mod@0.1.0/c.js'
         }
+    },
+    '/path/to/c.js': {
+        code: 'module.exports = "c"',
+        resolved: {}
     },
     '/path/to/a/index.json': {
         dependents: ['/path/to/index.js'],
@@ -138,7 +145,15 @@ describe("_resolveDeps()", function () {
                     './c': '/path/to/c.js'
                 },
                 code: "var json = require('./a/index.json');var c = require('../c.js');"
-            }
+            },
+            'b':{
+                foreign: true
+            },
+            'd':{
+                foreign: true
+            },
+            '/path/to/a/index.json':{},
+            '/path/to/c.js':{}
         };
         parser = new Parser({
             pkg: {
@@ -162,6 +177,9 @@ describe("_resolveDeps()", function () {
                     'z': 'y'
                 },
                 code: "var z = require('z')"
+            },
+            'y': {
+                foreign: true
             }
         };
         parser = new Parser({
@@ -173,7 +191,7 @@ describe("_resolveDeps()", function () {
             cwd: "/path/to"
         });
         parser._resolveDeps(_.clone(nodes), function (err) {
-            expect(err.message).to.equal('Explicit version of dependency \"y\" are not defined in package.json.\n Use \"cortex install b d --save\". file: /path/to/index.js');
+            expect(err.message).to.equal('Explicit version of dependency \"y\" is not defined in package.json.\n Use \"cortex install y --save\". file: /path/to/index.js');
             done();
         });
     })
@@ -189,7 +207,10 @@ describe("_resolveDeps()", function () {
                     '../c': '/path/c.js'
                 },
                 code: "var json = require('./a/index.json');var c = require('../c.js');"
-            }
+            },
+            '/path/to/a/index.json':{},
+            '/path/c.js':{},
+            'b':{foreign:true}
         };
         parser.pkg.dependencies = {};
         parser._resolveDeps(_.clone(nodes), function (err) {
@@ -243,7 +264,12 @@ describe("_generateMap()", function () {
                 './c.js': './c.js'
             }
         };
-        var id = "/path/to/index.js"
+        var id = "/path/to/index.js";
+        parser.nodes = {
+            "b":{foreign:true},
+            "/path/to/A/index.json":{},
+            "/path/to/c.js":{}
+        };
         var map = parser._generateMap(id, _.clone(mod));
         expect(map).to.deep.equal({
             './A': 'mod@0.1.0/a/index.json',
@@ -254,6 +280,10 @@ describe("_generateMap()", function () {
 
 describe("_resolveModuleDependencies()", function(){
     it('properly', function () {
+        parser.nodes = {
+            "b":{foreign:true},
+            "/path/to/A/index.json":{}
+        }
         var result = parser._resolveModuleDependencies("/path/to/index.js", {
             dependencies: {
                 "b": "b",
@@ -300,11 +330,10 @@ describe("parse()", function () {
         });
     });
 
-    it.only('simple test', function (done) {
+    it('simple test', function (done) {
         var filepath = fixture("input.js");
 
         parser.parse(filepath, function (err, actual) {
-            console.log(actual);
             var out = fs.readFileSync( expected('output.js'), 'utf-8');
             expect(actual).to.equal(out);
             done();
