@@ -7,7 +7,7 @@ var _3 = "mod@0.1.0/c.js";
 var _4 = "mod@0.1.0/index.js";
 var asyncDeps = [_0];
 var asyncDepsToMix = {"c":_0};
-var globalMap = mix({},asyncDepsToMix);
+var globalMap = asyncDepsToMix;
 define(_4, [_1,_2,_3], function(require, exports, module, __filename, __dirname) {
 var json = require('./a/index.json');var c = require('./c.js');
 }, {

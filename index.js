@@ -15,8 +15,11 @@ var Parser = function (opt) {
     this.locals = {};
     this.entries = this.pkg.entries || [];
     this.asyncDependencies = this.pkg.asyncDependencies || {};
+    this.as = this.pkg.as || {};
 
-    var asyncDepRef = this.asyncDependencies;
+    var asyncDependencies = this.asyncDependencies;
+    var as = this.as;
+
     this.asyncDepsToMix = {};
     this.globalMap = {};
     this.asyncDeps = [];
@@ -27,13 +30,26 @@ var Parser = function (opt) {
         return entry;
     });
 
-    _.keys(asyncDepRef).forEach(function (name) {
-        var version = asyncDepRef[name];
-        var id = [name, version].join("@");
+    _.keys(asyncDependencies).forEach(function (name) {
+        var version = asyncDependencies[name];
+        var id = addToAsync(name,version,name);
         self.asyncDeps.push(id);
-        self.asyncDepsToMix[name] = id;
-        self._addLocals(id);
     });
+
+    _.keys(as).forEach(function(alias){
+        var name = as[alias];
+        var version = asyncDependencies[name];
+        if(self._isForeign(alias) && self._isForeign(name) && asyncDependencies[name]){
+            addToAsync(name, version, alias);
+        }
+    });
+
+    function addToAsync(name, version, key){
+        var id = [name, version].join("@");
+        self.asyncDepsToMix[key] = id;
+        self._addLocals(id);
+        return id;
+    }
 };
 
 Parser.prototype.parse = function (filepath, callback) {
@@ -111,7 +127,7 @@ Parser.prototype._generateCode = function (codes, callback) {
         var value = self[key];
         (key == "asyncDepsToMix" || value.length) && declareVarible(key, self._toLocals(value), true);
     });
-    declareVarible("globalMap","mix(" + self._toLocals(self.globalMap) + ",asyncDepsToMix)", true)
+    declareVarible("globalMap", _.keys(self.globalMap).length ? ( "mix(" + self._toLocals(self.globalMap) + ",asyncDepsToMix)")  : "asyncDepsToMix", true)
     code = _.template(template, {
         variables: variables.join(""),
         code: code
