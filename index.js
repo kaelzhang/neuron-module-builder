@@ -198,10 +198,11 @@ Parser.prototype._generateId = function (filepath, relative) {
     var cwd = this.cwd;
     var pkg = this.pkg;
     var main_id = [pkg.name, pkg.version].join("@");
-    var relative_path = relative ? filepath : path.relative(cwd, filepath);
+    var reg = new RegExp("\\" + path.sep, "g");
+    var relative_path = relative ? filepath : path.relative(cwd, filepath).replace(reg,"/");
 
     // -> 'module@0.0.1/folder/foo'
-    var id = path.join(main_id, relative_path);
+    var id = main_id + '/' + relative_path;
     id = id.toLowerCase();
     this._addLocals(id);
     return id;
