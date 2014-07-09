@@ -1,10 +1,10 @@
 {
   "name": "neuron-builder",
-  "version": "3.2.3",
+  "version": "3.2.4",
   "description": "Wrap commonjs module/1.0 javascript files for [cortex](http://github.com/kaelzhang/cortex)",
   "main": "index.js",
   "scripts": {
-    "test": "make test"
+    "test": "./node_modules/.bin/mocha ./test"
   },
   "repository": {
     "type": "git",
@@ -29,7 +29,7 @@
   },
   "dependencies": {
     "async": "^0.8.0",
-    "underscore": "^1.6.0",
+    "underscore": "~1.6.0",
     "commonjs-walker": "~4.0.0"
   }
 }

@@ -77,7 +77,7 @@ var codes = {
 };
 
 
-var expectedResult = fs.readFileSync(path.join(__dirname, 'expected', 'mock.js'),'utf8');
+var expectedResult = fs.readFileSync(path.join(__dirname, 'expected', 'mock.js'),'utf8').replace(/\r\n/g,'\n');
 
 beforeEach(function () {
     parser = new Parser({
@@ -324,8 +324,9 @@ describe("parse()", function () {
           "z": "y"
         }
         parser.parse(filepath, function (err, actual) {
-            expect(err.message).to.equal('Explicit version of dependency \"y\" is not defined in package.json.\n'
-                + ' Use \"cortex install y --save\". file: /Users/spud/Product/neuron-builder/test/fixtures/not-installed.js');
+            var message = 'Explicit version of dependency \"y\" is not defined in package.json.\n'
+                + ' Use \"cortex install y --save\".';
+            expect(!!err.message.match(message)).to.be.true;
             done();
         });
     });
@@ -334,7 +335,7 @@ describe("parse()", function () {
         var filepath = fixture("input.js");
 
         parser.parse(filepath, function (err, actual) {
-            var out = fs.readFileSync( expected('output.js'), 'utf-8');
+            var out = fs.readFileSync( expected('output.js'), 'utf-8').replace(/\r\n/g,'\n');
             expect(actual).to.equal(out);
             done();
         });

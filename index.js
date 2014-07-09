@@ -159,7 +159,7 @@ Parser.prototype._wrapping = function (id, mod) {
     var resolvedDeps = _.values(mod.resolved);
     var module_options = this._generateModuleOptions(id, mod);
     var id = this._generateId(filepath);
-    var code = mod.code.toString();
+    var code = mod.code.toString().replace(/\r\n/g,'\n');
     var template ="define(<%= id %>, <%= deps %>, function(require, exports, module, __filename, __dirname) {\n"
         + "<%= code %>\n"
     + "}<%= module_options ? module_options : '' %>);";
@@ -210,15 +210,17 @@ Parser.prototype._generateId = function (filepath, relative) {
 
 
 Parser.prototype._isForeign = function (str) {
-    return ["../", ".", "/"].every(function (prefix) {
-        return str.indexOf(prefix) !== 0;
+    var isWindowsAbsolute = str.match(/^\w+:\\/);
+    var isRelative = ["../", "./"].some(function (prefix) {
+        return str.indexOf(prefix) === 0;
     });
+    var isUnixAbsolute = str.indexOf("/") == 0;
+    return !isRelative && !isUnixAbsolute && !isWindowsAbsolute;
 }
 
 Parser.prototype._outOfDir = function (dep, file) {
-    var cwd = this.cwd;
-    var mod_path = path.join(path.dirname(file), dep);
-
+    var cwd = path.resolve(this.cwd);
+    var mod_path = path.resolve(path.join(path.dirname(file), dep));
     return mod_path.indexOf(cwd) == -1;
 }
 
@@ -237,7 +239,7 @@ Parser.prototype._generateModuleOptions = function (id, mod) {
         module_options.entries = true;
     }
 
-    if (pkg.main && mod.entry && id === path.join(cwd, pkg.main)) {
+    if (pkg.main && mod.entry && path.resolve(id) === path.resolve(cwd, pkg.main)) {
         module_options.main = true;
     }
 
@@ -302,6 +304,7 @@ Parser.prototype._resolveModuleDependencies = function (id, mod) {
         var opt = self.opt;
         var resolved;
         var realDependency = deps[module_name];
+
         if (self._isForeign(realDependency)) {
             resolved = self._resolveForeignDependency(realDependency);
             if (!resolved) {
