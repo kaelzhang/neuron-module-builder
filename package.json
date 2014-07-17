@@ -30,6 +30,6 @@
   "dependencies": {
     "async": "^0.8.0",
     "underscore": "~1.6.0",
-    "commonjs-walker": "^4.2.0"
+    "commonjs-walker": "^5.0.0"
   }
 }

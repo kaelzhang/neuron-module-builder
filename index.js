@@ -2,7 +2,8 @@
 
 module.exports = builder;
 
-// ```
+// ## Usage
+// ```js
 // builder(options)
 // .on('warn', function () {
   
@@ -157,14 +158,18 @@ Parser.prototype._getDeps = function(filepath, callback) {
   var self = this;
   var walker = require('commonjs-walker');
   var pkg = this.pkg;
-  walker(filepath, {
+  walker({
     detectCyclic: true,
     strictRequire: true,
     allowAbsolutePath: false,
     extensions: ['.js', '.json'],
     cwd: self.cwd,
     'as': pkg['as'] || {}
-  }, callback);
+  })
+  .on('warn', function (message) {
+    self.emit('warn', message);
+  })
+  .walk(filepath, callback);
 };
 
 Parser.prototype._wrapping = function(id, mod) {
