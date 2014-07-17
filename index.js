@@ -159,7 +159,7 @@ Parser.prototype._getDeps = function(filepath, callback) {
   var walker = require('commonjs-walker');
   var pkg = this.pkg;
   walker(filepath, {
-    allowCyclic: false,
+    allowCyclic: true,
     strictRequire: true,
     allowAbsolutePath: false,
     extensions: ['.js', '.json'],
