@@ -1,14 +1,29 @@
 # neuron-builder [![NPM version](https://badge.fury.io/js/neuron-builder.png)](http://badge.fury.io/js/neuron-builder) [![Build Status](https://travis-ci.org/cortexjs/neuron-builder.png?branch=master)](https://travis-ci.org/cortexjs/neuron-builder) [![Dependency Status](https://gemnasium.com/cortexjs/neuron-builder.png)](https://gemnasium.com/cortexjs/neuron-builder)
 
-## API
+## Usage
 
-### build(file, option, callback)
+```js
+var builder = require('neuron-builder');
+```
+
+### builder(options).parse(file, callback)
+
+```js
+builder(options)
+.on('warn', function(message){
+  console.warn(message);
+})
+.parse(file, callback);
+```
 
 #### arguments
-- file: the parsing file
-- option.pkg: mixed package json format of project
-- option.targetVersion: target version to build
-- option.cwd: current working directory
-- option.allowNotInstalled
+- options `Object`
+  - pkg: mixed package json format of project
+  - targetVersion: target version to build
+  - cwd: current working directory
+  - allowNotInstalled
+  
+- file `Path` the parsing file
+
 
 `callback` will get `err` and `contents` as its arguments, where `contents` is the wrapped result.
