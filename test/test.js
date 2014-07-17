@@ -5,7 +5,7 @@ var build = require('../');
 var jf = require('jsonfile');
 var _ = require('underscore');
 var expect = require('chai').expect;
-var Parser = build.Parser;
+var Parser = build.Builder;
 require('should');
 
 function fixture(filepath){
