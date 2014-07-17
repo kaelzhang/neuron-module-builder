@@ -158,18 +158,18 @@ Parser.prototype._getDeps = function(filepath, callback) {
   var self = this;
   var walker = require('commonjs-walker');
   var pkg = this.pkg;
-  walker({
-    detectCyclic: true,
+  walker(filepath, {
+    allowCyclic: false,
     strictRequire: true,
     allowAbsolutePath: false,
     extensions: ['.js', '.json'],
     cwd: self.cwd,
     'as': pkg['as'] || {}
-  })
+  }, callback)
   .on('warn', function (message) {
     self.emit('warn', message);
   })
-  .walk(filepath, callback);
+  .walk();
 };
 
 Parser.prototype._wrapping = function(id, mod) {
