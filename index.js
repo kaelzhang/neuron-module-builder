@@ -6,7 +6,6 @@ module.exports = builder;
 // ```js
 // builder(options)
 // .on('warn', function () {
-  
 // })
 // .parse(filepath, callback);
 // ```
@@ -191,7 +190,7 @@ Parser.prototype._wrapping = function(id, mod) {
       value = ({
         "asyncDeps": "asyncDeps",
         "entries": "entries",
-        "map": _.keys(value).length ? ("mix(globalMap," + self._toLocals(value) + ")") : "globalMap",
+        "map": _.keys(value).length ? ("mix(" + self._toLocals(value) + ",globalMap)") : "globalMap",
         "main": "true"
       })[key];
 
