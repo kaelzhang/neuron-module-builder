@@ -34,6 +34,21 @@ function Parser (opt) {
   this.entries = this.pkg.entries || [];
   this.asyncDependencies = this.pkg.asyncDependencies || {};
   this.as = this.pkg.as || {};
+  this.loaders = opt.loaders.map(function(loaderConfig){
+    var loaderName = loaderConfig.loader;
+    var localPath = path.join(opt.cwd, 'node_modules', loaderName);
+    var loaderFn;
+    if(fs.existsSync(localPath)){
+      loaderFn = require(localPath);
+    }else{
+      loadersaderFn = require(loaderName);
+    }
+    return _.extend({
+      loaderFn: loaderFn
+    }, loaderConfig);
+  });
+
+  console.log('loaders', this.loaders);
 
   var asyncDependencies = this.asyncDependencies;
   var as = this.as;
