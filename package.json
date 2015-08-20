@@ -29,7 +29,7 @@
   },
   "dependencies": {
     "async": "^0.9.0",
-    "commonjs-walker": "^5.0.0",
+    "commonjs-walker": "^5.0.2",
     "underscore": "^1.6.0"
   }
 }

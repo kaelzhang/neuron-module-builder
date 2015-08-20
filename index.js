@@ -34,21 +34,7 @@ function Parser (opt) {
   this.entries = this.pkg.entries || [];
   this.asyncDependencies = this.pkg.asyncDependencies || {};
   this.as = this.pkg.as || {};
-  this.loaders = opt.loaders.map(function(loaderConfig){
-    var loaderName = loaderConfig.loader;
-    var localPath = path.join(opt.cwd, 'node_modules', loaderName);
-    var loaderFn;
-    if(fs.existsSync(localPath)){
-      loaderFn = require(localPath);
-    }else{
-      loadersaderFn = require(loaderName);
-    }
-    return _.extend({
-      loaderFn: loaderFn
-    }, loaderConfig);
-  });
-
-  console.log('loaders', this.loaders);
+  this.loaders = opt.loaders;
 
   var asyncDependencies = this.asyncDependencies;
   var as = this.as;
@@ -99,8 +85,12 @@ Parser.prototype.parse = function(filepath, callback) {
     function(done) {
       self._getDeps(filepath, done);
     },
-    this._resolveDeps.bind(this),
-    this._generateCode.bind(this)
+    function(nodes, done){
+      self._resolveDeps(nodes, done);
+    },
+    function(codes, done){
+      self._generateCode(codes, done);
+    }
   ], callback);
 }
 
@@ -160,7 +150,7 @@ Parser.prototype._generateCode = function(codes, callback) {
     (key == "asyncDepsToMix" || value.length) && declareVarible(key, self._toLocals(value), true);
   });
   declareVarible("globalMap", _.keys(self.globalMap).length ? ("mix(" + self._toLocals(self.globalMap) + ",asyncDepsToMix)") : "asyncDepsToMix", true)
-  code = _.template(template, {
+  code = _.template(template)({
     variables: variables.join(""),
     code: code
   });
@@ -178,8 +168,12 @@ Parser.prototype._getDeps = function(filepath, callback) {
     allowAbsolutePath: false,
     extensions: ['.js', '.json'],
     cwd: self.cwd,
-    'as': pkg['as'] || {}
-  }, callback)
+    'as': pkg['as'] || {},
+    loaders: this.loaders
+  }, function(err, deps){
+    if(err){return callback(err);}
+    callback(null, deps);
+  })
   .on('warn', function (message) {
     self.emit('warn', message);
   })
@@ -216,14 +210,14 @@ Parser.prototype._wrapping = function(id, mod) {
 
   module_options = optionsToString(module_options);
 
-  var result = _.template(template, {
+  var result = _.template(template)({
     id: self._toLocals(id),
     deps: this._toLocals(resolvedDeps),
-    code: path.extname(id) == ".json" ? ("module.exports = " + code) : code,
+    code: code,
     module_options: module_options
   });
 
-  return result
+  return result;
 };
 
 
