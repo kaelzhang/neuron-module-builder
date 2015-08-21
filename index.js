@@ -115,7 +115,7 @@ Parser.prototype._resolveDeps = function(nodes, callback) {
         errmsg = e.message;
       }
       e.file = id;
-      return callback(new Error(_.template(errmsg, e)));
+      return callback(new Error(_.template(errmsg)(e)));
     }
     codes[id] = mod;
   }
