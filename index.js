@@ -115,7 +115,7 @@ Parser.prototype._resolveDeps = function(nodes, callback) {
         errmsg = e.message;
       }
       e.file = id;
-      return callback(new Error(_.template(errmsg, e)));
+      return callback(new Error(_.template(errmsg)(e)));
     }
     codes[id] = mod;
   }
@@ -160,7 +160,7 @@ Parser.prototype._generateCode = function(codes, callback) {
 
 Parser.prototype._getDeps = function(filepath, callback) {
   var self = this;
-  var walker = require('commonjs-walker');
+  var walker = require('cortex-commonjs-walker');
   var pkg = this.pkg;
   walker(filepath, {
     allowCyclic: true,
