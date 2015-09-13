@@ -176,6 +176,9 @@ Parser.prototype._getDeps = function(filepath, callback) {
     if(err){return callback(err);}
     callback(null, deps);
   })
+  .on('dependency', function(mod, parent){
+    self.emit('dependency', mod, parent);
+  })
   .on('warn', function (message) {
     self.emit('warn', message);
   })
