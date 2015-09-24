@@ -214,12 +214,21 @@ Parser.prototype._wrapping = function(id, mod) {
     id: self._toLocals(id),
     deps: this._toLocals(resolvedDeps),
     code: code,
+    code: this._dealCode(id, code),
     module_options: module_options
   });
 
   return result;
 };
 
+
+Parser.prototype.dealCode = function(id, code){
+  if(path.extname(id) == '.json'){
+    return "module.exports = " + code;
+  }else{
+    return code;
+  }
+}
 
 Parser.prototype._generateId = function(filepath, relative) {
   // the exact identifier
