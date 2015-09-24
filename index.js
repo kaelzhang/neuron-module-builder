@@ -218,7 +218,6 @@ Parser.prototype._wrapping = function(id, mod) {
   var result = _.template(template)({
     id: self._toLocals(id),
     deps: this._toLocals(resolvedDeps),
-    code: code,
     code: this._dealCode(id, code),
     module_options: module_options
   });
