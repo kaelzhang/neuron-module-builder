@@ -9,7 +9,7 @@ module.exports = builder;
 // })
 // .parse(filepath, callback);
 // ```
-function builder (options) {
+function builder(options) {
   return new Builder(options || {});
 }
 
@@ -23,30 +23,31 @@ var async = require('async');
 var path = require('path');
 var _ = require('underscore');
 var EE = require('events').EventEmitter;
+var walker = require('commonjs-walker');
 
-function Builder (opt) {
+function Builder(options) {
   var self = this;
   this._uuid = 0;
-  this.opt = opt;
-  this.cwd = opt.cwd;
-  this.pkg = opt.pkg;
+  this.options = opt;
+  this.cwd = options.cwd;
+  this.pkg = options.pkg;
   this.locals = {};
   this.entries = this.pkg.entries || [];
   this.asyncDependencies = this.pkg.asyncDependencies || {};
   this.as = this.pkg.as || {};
-  this.loaders = opt.loaders;
-  this.loader_version = opt.loader_version;
+  this.loaders = options.loaders;
+  this.loader_version = options.loader_version;
 
   var asyncDependencies = this.asyncDependencies;
-  var as = this.as;
+  // var as = this.as;
 
   this.asyncDepsToMix = {};
   this.globalMap = {};
   this.asyncDeps = [];
 
   this.entries = this.entries.map(function(entry) {
-    entry = self._generateId(entry, true);
-    self._addLocals(entry);
+    entry = self._generate_module_id(entry, true);
+    self._add_locals(entry);
     return entry;
   });
 
@@ -56,18 +57,18 @@ function Builder (opt) {
     self.asyncDeps.push(id);
   });
 
-  Objects.keys(as).forEach(function(alias) {
-    var name = as[alias];
-    var version = asyncDependencies[name];
-    if (self._isForeign(alias) && self._isForeign(name) && asyncDependencies[name]) {
-      addToAsync(name, version, alias);
-    }
-  });
+  // Objects.keys(as).forEach(function(alias) {
+  //   var name = as[alias];
+  //   var version = asyncDependencies[name];
+  //   if (self._is_foreign(alias) && self._is_foreign(name) && asyncDependencies[name]) {
+  //     addToAsync(name, version, alias);
+  //   }
+  // });
 
   function addToAsync(name, version, key) {
-    var id = [name, version].join("@");
+    var id = [name, version].join('@');
     self.asyncDepsToMix[key] = id;
-    self._addLocals(id);
+    self._add_locals(id);
     return id;
   }
 };
@@ -82,25 +83,53 @@ Builder.prototype.parse = function(filepath, callback) {
   var locals = this.locals;
 
   async.waterfall([
-
     function(done) {
-      self._getDeps(filepath, done);
+      self._get_dependency_tree(filepath, done);
     },
-    function(nodes, done){
-      self._resolveDeps(nodes, done);
+    function(nodes, done) {
+      self._resolve_dependencies(nodes, done);
     },
-    function(codes, done){
+    function(codes, done) {
       self._generateCode(codes, done);
     }
   ], callback);
-}
+};
 
-Builder.prototype._resolveDeps = function(nodes, callback) {
-  this.nodes = nodes;
+
+// Gets the dependency tree from the entry file
+// @param {String} filepath 
+// @param {function(err, nodes)} callback
+Builder.prototype._get_dependency_tree = function(filepath, callback) {
+  var self = this;
+  walker(filepath, {
+    allow_cyclic: true,
+    check_require_length: true,
+    allow_absolute_path: false,
+    extensions: ['.js', '.json'],
+    require_resolve: true,
+    require_async: true
+
+  }, function(err, nodes) {
+    if (err) {
+      return callback(err);
+    }
+
+    self.nodes = nodes;
+    callback(null, nodes);
+  })
+  .on('warn', function(message) {
+    self.emit('warn', message);
+  });
+};
+
+
+Builder.prototype._resolve_dependencies = function(nodes, callback) {
   var codes = {};
-  var errmsg = "";
-  for (var id in nodes) {
-    var mod = nodes[id];
+  var errmsg = '';
+  var id;
+  var mod
+  for (id in nodes) {
+    mod = nodes[id];
     if (mod.foreign) {
       continue;
     }
@@ -108,10 +137,10 @@ Builder.prototype._resolveDeps = function(nodes, callback) {
     try {
       mod.resolved = this._resolveModuleDependencies(id, mod);
     } catch (e) {
-      if (e.code == "ENOTINSTALLED") {
-        errmsg = "Explicit version of dependency <%= deps.map(function(dep){return '\"' + dep + '\"'}).join(\", \") %> <%= deps.length > 1 ? 'are' : 'is' %> not defined in package.json.\n Use \"cortex install <%= deps.join(' ') %> --save\". file: <%= file %>";
-      } else if (e.code == "EOUTENTRY") {
-        errmsg = "Relative dependency \"<%= deps[0] %>\" out of main entry\'s directory. file: <%= file %>";
+      if (e.code == 'ENOTINSTALLED') {
+        errmsg = 'Explicit version of dependency <%= deps.map(function(dep){return '\'' + dep + '\''}).join(\', \') %> <%= deps.length > 1 ? 'are' : 'is' %> not defined in package.json.\n Use \'cortex install <%= deps.join(' ') %> --save\'. file: <%= file %>';
+      } else if (e.code == 'EOUTENTRY') {
+        errmsg = 'Relative dependency \'<%= deps[0] %>\' out of main entry\'s directory. file: <%= file %>';
       } else {
         errmsg = e.message;
       }
@@ -121,9 +150,16 @@ Builder.prototype._resolveDeps = function(nodes, callback) {
     codes[id] = mod;
   }
 
-
   callback(null, codes);
 };
+
+
+var CODE_TEMPLATE = 
+  ';(function(){\n' + 
+    'function mix(a, b){ for(var k in b) { a[k]=b[k]; } return a; }\n' + 
+    '<%= variables %>' + 
+    '<%= code %>\n' + 
+  '})();';
 
 Builder.prototype._generateCode = function(codes, callback) {
   var self = this;
@@ -131,9 +167,9 @@ Builder.prototype._generateCode = function(codes, callback) {
   var code = _.keys(codes).map(function(id) {
     var mod = codes[id];
     return self._wrapping(id, mod);
-  }).join("\n\n");
+  }).join('\n\n');
+
   var variables = [];
-  var template = "(function(){\n" + "function mix(a,b){for(var k in b){a[k]=b[k];}return a;}\n" + "<%= variables %>" + "<%= code %>\n" + "})();";
 
   function declareVarible(name, value, raw) {
     var statement = 'var ' + name + ' = ' + (raw ? value : JSON.stringify(value)) + ';\n';
@@ -146,66 +182,46 @@ Builder.prototype._generateCode = function(codes, callback) {
     declareVarible(locals[v], v);
   });
 
-  ["entries", "asyncDeps", "asyncDepsToMix"].forEach(function(key) {
+  ['entries', 'asyncDeps', 'asyncDepsToMix'].forEach(function(key) {
     var value = self[key];
-    (key == "asyncDepsToMix" || value.length) && declareVarible(key, self._toLocals(value), true);
+    (key == 'asyncDepsToMix' || value.length) && declareVarible(key, self._toLocals(value), true);
   });
-  declareVarible("globalMap", _.keys(self.globalMap).length ? ("mix(" + self._toLocals(self.globalMap) + ",asyncDepsToMix)") : "asyncDepsToMix", true)
-  code = _.template(template)({
-    variables: variables.join(""),
+  declareVarible('globalMap', _.keys(self.globalMap).length ? ('mix(' + self._toLocals(self.globalMap) + ',asyncDepsToMix)') : 'asyncDepsToMix', true)
+  code = _.template(CODE_TEMPLATE)({
+    variables: variables.join(''),
     code: code
   });
 
   callback(null, code);
-}
-
-Builder.prototype._getDeps = function(filepath, callback) {
-  var self = this;
-  var walker = require('cortex-commonjs-walker');
-  var pkg = this.pkg;
-  walker(filepath, {
-    allow_cyclic: true,
-    check_require_length: true,
-    allow_absolute_path: false,
-    extensions: ['.js', '.json'],
-    require_resolve: true,
-    require_async: true
-
-  }, function(err, deps){
-    if(err){return callback(err);}
-    callback(null, deps);
-  })
-  .on('warn', function (message) {
-    self.emit('warn', message);
-  });
 };
+
 
 Builder.prototype._wrapping = function(id, mod) {
   var self = this;
   var pkg = this.pkg;
-  var opt = this.opt;
+  var opt = this.options;
   var filepath = id;
   var entries = this.entries;
   var resolvedDeps = _.values(mod.resolved);
   var module_options = this._generateModuleOptions(id, mod);
-  var id = this._generateId(filepath);
+  var id = this._generate_module_id(filepath);
   var code = mod.code.toString().replace(/\r\n/g, '\n');
-  var template = "define(<%= id %>, <%= deps %>, function(require, exports, module, __filename, __dirname) {\n" + "<%= code %>\n" + "}<%= module_options ? module_options : '' %>);";
+  var template = 'define(<%= id %>, <%= deps %>, function(require, exports, module, __filename, __dirname) {\n' + '<%= code %>\n' + '}<%= module_options ? module_options : '' %>);';
 
   function optionsToString(module_options) {
     var pairs = [];
     for (var key in module_options) {
       var value = module_options[key];
       value = ({
-        "asyncDeps": "asyncDeps",
-        "entries": "entries",
-        "map": _.keys(value).length ? ("mix(" + self._toLocals(value) + ",globalMap)") : "globalMap",
-        "main": "true"
+        'asyncDeps': 'asyncDeps',
+        'entries': 'entries',
+        'map': _.keys(value).length ? ('mix(' + self._toLocals(value) + ',globalMap)') : 'globalMap',
+        'main': 'true'
       })[key];
 
-      pairs.push(key + ":" + value);
+      pairs.push(key + ':' + value);
     }
-    return pairs.length ? (", {\n\t" + pairs.join(",\n\t") + "\n}").replace(/\t/g, "    ") : "";
+    return pairs.length ? (', {\n\t' + pairs.join(',\n\t') + '\n}').replace(/\t/g, '    ') : '';
   }
 
   module_options = optionsToString(module_options);
@@ -221,45 +237,53 @@ Builder.prototype._wrapping = function(id, mod) {
 };
 
 
-Builder.prototype.dealCode = function(id, code){
-  if(path.extname(id) == '.json'){
-    return "module.exports = " + code;
-  }else{
+Builder.prototype.dealCode = function(id, code) {
+  if (path.extname(id) == '.json') {
+    return 'module.exports = ' + code;
+  } else {
     return code;
   }
-}
+};
 
-Builder.prototype._generateId = function(filepath, relative) {
+
+Builder.prototype._generate_module_id = function(filepath, relative) {
   // the exact identifier
   var cwd = this.cwd;
   var pkg = this.pkg;
-  var main_id = [pkg.name, pkg.version].join("@");
-  var reg = new RegExp("\\" + path.sep, "g");
-  var relative_path = relative ? filepath : path.relative(cwd, filepath);
+  var main_id = [pkg.name, pkg.version].join('@');
+
+  var relative_path = relative
+    ? filepath 
+    : path.relative(cwd, filepath);
 
   // -> 'module@0.0.1/folder/foo'
   var id = path.join(main_id, relative_path);
-  id = id.replace(reg, "/");
+
+  // fixes windows paths
+  id = id.replace(new RegExp('\\' + path.sep, 'g'), '/');
+
   id = id.toLowerCase();
-  this._addLocals(id);
+  this._add_locals(id);
   return id;
-}
+};
 
 
-Builder.prototype._isForeign = function(str) {
+Builder.prototype._is_foreign = function(str) {
   var isWindowsAbsolute = str.match(/^\w+:\\/);
-  var isRelative = ["../", "./"].some(function(prefix) {
+  var isRelative = ['../', './'].some(function(prefix) {
     return str.indexOf(prefix) === 0;
   });
-  var isUnixAbsolute = str.indexOf("/") == 0;
+  var isUnixAbsolute = str.indexOf('/') == 0;
   return !isRelative && !isUnixAbsolute && !isWindowsAbsolute;
-}
+};
+
 
 Builder.prototype._outOfDir = function(dep, file) {
   var cwd = path.resolve(this.cwd);
   var mod_path = path.resolve(path.join(path.dirname(file), dep));
   return mod_path.indexOf(cwd) == -1;
-}
+};
+
 
 Builder.prototype._generateModuleOptions = function(id, mod) {
   var self = this;
@@ -285,7 +309,8 @@ Builder.prototype._generateModuleOptions = function(id, mod) {
 
 
   return _.keys(module_options).length ? module_options : null;
-}
+};
+
 
 Builder.prototype._generateMap = function(id, mod) {
   var self = this;
@@ -301,9 +326,9 @@ Builder.prototype._generateMap = function(id, mod) {
     var result;
     var realDependency = dependencies[dep];
 
-    if (!self._isForeign(realDependency)) {
+    if (!self._is_foreign(realDependency)) {
       result = realDependency.toLowerCase();
-      result = self._generateId(realDependency);
+      result = self._generate_module_id(realDependency);
     } else if (as[dep]) {
       result = self._resolveForeignDependency(realDependency);
       self.globalMap[realDependency] = result;
@@ -311,23 +336,25 @@ Builder.prototype._generateMap = function(id, mod) {
 
     if (result) {
       map[dep] = result;
-      self._addLocals(result);
+      self._add_locals(result);
     }
   });
   return map;
 };
 
+
 Builder.prototype._resolveForeignDependency = function(module_name) {
   var pkg = this.pkg;
-  var deps = ["dependencies", "asyncDependencies", "devDependencies"];
+  var deps = ['dependencies', 'asyncDependencies', 'devDependencies'];
   for (var i = 0; i < deps.length; i++) {
     var dep = deps[i];
     if (pkg[dep] && pkg[dep][module_name]) {
-      return module_name + "@" + pkg[dep][module_name];
+      return module_name + '@' + pkg[dep][module_name];
     }
   }
   return false;
 };
+
 
 Builder.prototype._resolveModuleDependencies = function(id, mod) {
   var self = this;
@@ -338,11 +365,11 @@ Builder.prototype._resolveModuleDependencies = function(id, mod) {
   var resolvedDeps = {};
 
   for (var module_name in deps) {
-    var opt = self.opt;
+    var opt = self.options;
     var resolved;
     var realDependency = deps[module_name];
 
-    if (self._isForeign(realDependency)) {
+    if (self._is_foreign(realDependency)) {
       resolved = self._resolveForeignDependency(realDependency);
       if (!resolved) {
         notInstalled.push(realDependency);
@@ -351,33 +378,34 @@ Builder.prototype._resolveModuleDependencies = function(id, mod) {
     } else {
       if (self._outOfDir(module_name, id)) {
         throw {
-          code: "EOUTENTRY",
+          code: 'EOUTENTRY',
           deps: [module_name]
         };
       }
-      resolved = self._generateId(deps[module_name]);
+      resolved = self._generate_module_id(deps[module_name]);
     }
     resolvedDeps[module_name] = resolved;
-    self._addLocals(resolved);
+    self._add_locals(resolved);
   }
 
   if (notInstalled.length) {
     throw {
-      code: "ENOTINSTALLED",
+      code: 'ENOTINSTALLED',
       deps: notInstalled
     }
   }
 
   return resolvedDeps;
-}
+};
 
-Builder.prototype._addLocals = function(val) {
+
+Builder.prototype._add_locals = function(val) {
   var locals = this.locals;
   if (!locals[val]) {
-    locals[val] = "_" + this._uuid;
-    this._uuid++;
+    locals[val] = '_' + this._uuid ++;
   }
-}
+};
+
 
 Builder.prototype._toLocals = function(obj) {
   var locals = this.locals;
@@ -394,13 +422,13 @@ Builder.prototype._toLocals = function(obj) {
   }
 
   if (_.isArray(obj)) {
-    return '[' + obj.map(toLocals).filter(notNull).join(",") + ']'
+    return '[' + obj.map(toLocals).filter(notNull).join(',') + ']'
   };
 
   if (_.isObject(obj)) {
     return '{' + _.keys(obj).map(function(k) {
       var value = toLocals(obj[k]);
-      return value ? ('"' + k + '"' + ':' + value) : null
+      return value ? (''' + k + ''' + ':' + value) : null
     }).filter(notNull).join(',') + '}';
   }
-}
+};
