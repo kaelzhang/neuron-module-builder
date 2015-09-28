@@ -10,10 +10,10 @@ module.exports = builder;
 // .parse(filepath, callback);
 // ```
 function builder (options) {
-  return new Parser(options || {});
+  return new Builder(options || {});
 }
 
-builder.Builder = Parser;
+builder.Builder = Builder;
 
 
 var fs = require('fs');
@@ -24,7 +24,7 @@ var path = require('path');
 var _ = require('underscore');
 var EE = require('events').EventEmitter;
 
-function Parser (opt) {
+function Builder (opt) {
   var self = this;
   this._uuid = 0;
   this.opt = opt;
@@ -50,13 +50,13 @@ function Parser (opt) {
     return entry;
   });
 
-  _.keys(asyncDependencies).forEach(function(name) {
+  Objects.keys(asyncDependencies).forEach(function(name) {
     var version = asyncDependencies[name];
     var id = addToAsync(name, version, name);
     self.asyncDeps.push(id);
   });
 
-  _.keys(as).forEach(function(alias) {
+  Objects.keys(as).forEach(function(alias) {
     var name = as[alias];
     var version = asyncDependencies[name];
     if (self._isForeign(alias) && self._isForeign(name) && asyncDependencies[name]) {
@@ -72,10 +72,10 @@ function Parser (opt) {
   }
 };
 
-util.inherits(Parser, EE);
+util.inherits(Builder, EE);
 
 
-Parser.prototype.parse = function(filepath, callback) {
+Builder.prototype.parse = function(filepath, callback) {
   var self = this;
   var resolved = {};
   var pkg = this.pkg;
@@ -95,7 +95,7 @@ Parser.prototype.parse = function(filepath, callback) {
   ], callback);
 }
 
-Parser.prototype._resolveDeps = function(nodes, callback) {
+Builder.prototype._resolveDeps = function(nodes, callback) {
   this.nodes = nodes;
   var codes = {};
   var errmsg = "";
@@ -125,7 +125,7 @@ Parser.prototype._resolveDeps = function(nodes, callback) {
   callback(null, codes);
 };
 
-Parser.prototype._generateCode = function(codes, callback) {
+Builder.prototype._generateCode = function(codes, callback) {
   var self = this;
   var locals = this.locals;
   var code = _.keys(codes).map(function(id) {
@@ -159,33 +159,28 @@ Parser.prototype._generateCode = function(codes, callback) {
   callback(null, code);
 }
 
-Parser.prototype._getDeps = function(filepath, callback) {
+Builder.prototype._getDeps = function(filepath, callback) {
   var self = this;
   var walker = require('cortex-commonjs-walker');
   var pkg = this.pkg;
   walker(filepath, {
-    allowCyclic: true,
-    strictRequire: true,
-    allowAbsolutePath: false,
+    allow_cyclic: true,
+    check_require_length: true,
+    allow_absolute_path: false,
     extensions: ['.js', '.json'],
-    cwd: self.cwd,
-    'as': pkg['as'] || {},
-    loaders: this.loaders,
-    loader_version: this.loader_version
+    require_resolve: true,
+    require_async: true
+
   }, function(err, deps){
     if(err){return callback(err);}
     callback(null, deps);
   })
-  .on('dependency', function(mod, parent){
-    self.emit('dependency', mod, parent);
-  })
   .on('warn', function (message) {
     self.emit('warn', message);
-  })
-  .walk();
+  });
 };
 
-Parser.prototype._wrapping = function(id, mod) {
+Builder.prototype._wrapping = function(id, mod) {
   var self = this;
   var pkg = this.pkg;
   var opt = this.opt;
@@ -226,7 +221,7 @@ Parser.prototype._wrapping = function(id, mod) {
 };
 
 
-Parser.prototype.dealCode = function(id, code){
+Builder.prototype.dealCode = function(id, code){
   if(path.extname(id) == '.json'){
     return "module.exports = " + code;
   }else{
@@ -234,7 +229,7 @@ Parser.prototype.dealCode = function(id, code){
   }
 }
 
-Parser.prototype._generateId = function(filepath, relative) {
+Builder.prototype._generateId = function(filepath, relative) {
   // the exact identifier
   var cwd = this.cwd;
   var pkg = this.pkg;
@@ -251,7 +246,7 @@ Parser.prototype._generateId = function(filepath, relative) {
 }
 
 
-Parser.prototype._isForeign = function(str) {
+Builder.prototype._isForeign = function(str) {
   var isWindowsAbsolute = str.match(/^\w+:\\/);
   var isRelative = ["../", "./"].some(function(prefix) {
     return str.indexOf(prefix) === 0;
@@ -260,13 +255,13 @@ Parser.prototype._isForeign = function(str) {
   return !isRelative && !isUnixAbsolute && !isWindowsAbsolute;
 }
 
-Parser.prototype._outOfDir = function(dep, file) {
+Builder.prototype._outOfDir = function(dep, file) {
   var cwd = path.resolve(this.cwd);
   var mod_path = path.resolve(path.join(path.dirname(file), dep));
   return mod_path.indexOf(cwd) == -1;
 }
 
-Parser.prototype._generateModuleOptions = function(id, mod) {
+Builder.prototype._generateModuleOptions = function(id, mod) {
   var self = this;
   var pkg = this.pkg;
   var cwd = this.cwd;
@@ -292,7 +287,7 @@ Parser.prototype._generateModuleOptions = function(id, mod) {
   return _.keys(module_options).length ? module_options : null;
 }
 
-Parser.prototype._generateMap = function(id, mod) {
+Builder.prototype._generateMap = function(id, mod) {
   var self = this;
   var resolved = mod.resolved;
   var dependencies = mod.dependencies;
@@ -322,7 +317,7 @@ Parser.prototype._generateMap = function(id, mod) {
   return map;
 };
 
-Parser.prototype._resolveForeignDependency = function(module_name) {
+Builder.prototype._resolveForeignDependency = function(module_name) {
   var pkg = this.pkg;
   var deps = ["dependencies", "asyncDependencies", "devDependencies"];
   for (var i = 0; i < deps.length; i++) {
@@ -334,7 +329,7 @@ Parser.prototype._resolveForeignDependency = function(module_name) {
   return false;
 };
 
-Parser.prototype._resolveModuleDependencies = function(id, mod) {
+Builder.prototype._resolveModuleDependencies = function(id, mod) {
   var self = this;
   var pkg = this.pkg;
   var cwd = this.cwd;
@@ -376,7 +371,7 @@ Parser.prototype._resolveModuleDependencies = function(id, mod) {
   return resolvedDeps;
 }
 
-Parser.prototype._addLocals = function(val) {
+Builder.prototype._addLocals = function(val) {
   var locals = this.locals;
   if (!locals[val]) {
     locals[val] = "_" + this._uuid;
@@ -384,7 +379,7 @@ Parser.prototype._addLocals = function(val) {
   }
 }
 
-Parser.prototype._toLocals = function(obj) {
+Builder.prototype._toLocals = function(obj) {
   var locals = this.locals;
 
   function toLocals(item) {
