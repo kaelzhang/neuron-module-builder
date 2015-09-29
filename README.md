@@ -3,27 +3,31 @@
 ## Usage
 
 ```js
-var builder = require('neuron-builder');
+var builder = require('neuron-builder')(options);
+  .on('warn', function(message){
+    console.warn(message);
+  })
+  .parse(file, callback);
 ```
 
-### builder(options).parse(file, callback)
-
-```js
-builder(options)
-.on('warn', function(message){
-  console.warn(message);
-})
-.parse(file, callback);
-```
-
-#### arguments
 - options `Object`
   - pkg: mixed package json format of project
   - targetVersion: target version to build
   - cwd: current working directory
-  - allowNotInstalled
+
+### builder.parse(entry, callback)
+
+- entry `String` the pathname of the entry file to be parsed from
+- callback `function(err, content, parsed)`
+
+`callback` will get `err`, `contents` and `parsed` as its arguments, where:
+
+- err `Error`
+- content `String` the parsed content
+- parsed `Object` the dict which contains all infomations
+
+#### arguments
   
 - file `Path` the parsing file
 
 
-`callback` will get `err` and `contents` as its arguments, where `contents` is the wrapped result.
