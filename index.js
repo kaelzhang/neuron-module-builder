@@ -9,10 +9,10 @@ module.exports = builder;
 // })
 // .parse(filename, callback);
 // ```
-function builder(entry, options, callback) {
+function builder(options) {
   make_sure(options, 'pkg');
   make_sure(options, 'cwd');
-  new Builder(options || {}).parse(entry, callback);
+  return new Builder(options);
 }
 
 
@@ -283,15 +283,22 @@ Builder.prototype._wrap = function(filename, mod, callback) {
   });
 
   // options
-  var module_options = this._generate_module_options(id, mod);
+  var module_options = this._generate_module_options(filename, mod);
 
   var pairs = [];
   if ('main' in module_options) {
     pairs.push('main: true');
   }
 
+  var different;
+  var map;
   if ('map' in module_options) {
-    pairs.push('map: ' + self._stringify(get_difference(module_options, this.global_map)));
+    different = get_difference(module_options.map, this.global_map);
+    map = _.keys(different).length
+      ? 'mix(' + this._stringify(different) + ', global_map)'
+      : 'global_map';
+
+    pairs.push('map: ' + map);
   }
   
   module_options = pairs.length
@@ -354,7 +361,7 @@ Builder.prototype._get_content = function(filename, callback) {
 // - compiler: `function(content, options, callback)`
 // - options:
 // - pattern:
-Builder.prototype.register = function(pattern, new_compilers) {
+Builder.prototype.register = function(new_compilers) {
   new_compilers = make_array(new_compilers);
 
   var compilers = this.compilers;
@@ -375,8 +382,8 @@ Builder.prototype._compile = function(filename, content, callback) {
   var tasks = this.compilers.filter(function (c) {
     return c.pattern.test(filename);
   
-  }).reduce(function (c, i) {
-    return function (content, done) {
+  }).reduce(function (prev, c) {
+    function task (content, done) {
       var options = mix({
         // adds `filename` to options of each compiler
         filename: filename
@@ -384,6 +391,8 @@ Builder.prototype._compile = function(filename, content, callback) {
       }, c.options, false);
       c.compiler(content, options, done);
     };
+    prev.push(task);
+    return prev;
 
   }, [init]);
 
@@ -454,9 +463,7 @@ Builder.prototype._generate_module_options = function(id, mod) {
     module_options.map = mod.resolved;
   }
 
-  return _.keys(module_options).length
-    ? module_options
-    : null;
+  return module_options;
 };
 
 
