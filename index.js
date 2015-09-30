@@ -191,12 +191,21 @@ Builder.prototype._resolve_dependencies = function(id, mod, deps, resolved) {
 };
 
 
-var CODE_TEMPLATE = 
-  ';(function(){\n' + 
-    'function mix(a, b){ for(var k in b) { a[k]=b[k]; } return a; }\n' + 
-    '<%= variables %>' + 
-    '<%= code %>\n' + 
-  '})();';
+var CODE_TEMPLATE = [
+  ';(function(){'         ,
+  ''                      ,
+  'function mix(a, b){'   , 
+  '  for(var k in b) {'   ,
+  '    a[k] = b[k];'      ,
+  '  }'                   ,
+  '  return a;'           ,
+  '}'                     ,
+  '<%= variables %>'      , 
+  '<%= code %>'           ,
+  ''                      ,
+  '})();'
+
+].join('\n');
 
 Builder.prototype._generate_code = function(codes, callback) {
   var self = this;
@@ -208,9 +217,8 @@ Builder.prototype._generate_code = function(codes, callback) {
   }).join('\n\n');
 
   var statements = [];
-
   function declare_varible(name, value, raw) {
-    var statement = 'var ' + name + ' = ' + (raw ? value : JSON.stringify(value)) + ';\n';
+    var statement = 'var ' + name + ' = ' + (raw ? value : JSON.stringify(value)) + ';';
     if (value) {
       statements.push(statement);
     }
@@ -220,19 +228,20 @@ Builder.prototype._generate_code = function(codes, callback) {
     declare_varible(locals[v], v);
   });
 
-  ['entries', 'asyncDeps', 'async_deps_to_mix'].forEach(function(key) {
-    var value = self[key];
-    (key == 'async_deps_to_mix' || value.length) && declare_varible(key, self._to_locals(value), true);
-  });
-  declare_varible(
-    'global_map', 
-    _.keys(self.global_map).length 
-      ? 'mix(' + self._to_locals(self.global_map) + ',async_deps_to_mix)'
-      : 'async_deps_to_mix', true
-  );
-  
+  // ['entries', 'asyncDeps', 'async_deps_to_mix'].forEach(function(key) {
+  //   var value = self[key];
+  //   (key == 'async_deps_to_mix' || value.length) && declare_varible(key, self._to_locals(value), true);
+  // });
+
+  // declare_varible(
+  //   'global_map', 
+  //   _.keys(self.global_map).length 
+  //     ? 'mix(' + self._to_locals(self.global_map) + ',async_deps_to_mix)'
+  //     : 'async_deps_to_mix', true
+  // );
+
   code = _.template(CODE_TEMPLATE)({
-    variables: variables.join(''),
+    variables: statements.join('\n'),
     code: code
   });
 
@@ -256,7 +265,7 @@ Builder.prototype._wrap = function(filename, mod, callback) {
   });
 
   // options
-  var module_options = this._generateModuleOptions(id, mod);
+  var module_options = this._generate_module_options(id, mod);
 
   var pairs = [];
   var key;
@@ -264,14 +273,19 @@ Builder.prototype._wrap = function(filename, mod, callback) {
   for (key in module_options) {
     var value = module_options[key];
     value = ({
-      'map': _.keys(value).length ? ('mix(' + self._to_locals(value) + ',global_map)') : 'global_map',
+      'map': _.keys(value).length ? ('mix(' + self._to_locals(value) + ', global_map)') : 'global_map',
       'main': 'true'
     })[key];
 
     pairs.push(key + ':' + value);
   }
   
-  module_options = pairs.length ? ('{\n\t' + pairs.join(',\n\t') + '\n}').replace(/\t/g, '    ') : '';
+  module_options = pairs.length
+    ? '{\n'
+      + '  ' + pairs.join(',\n  ')
+      + '\n}'
+
+    : '';
 
   var self = this;
   this._get_compiled_content(filename, function (err, content) {
@@ -375,7 +389,7 @@ Builder.prototype._generate_module_id = function(filename, relative) {
 
   // fixes windows paths
   id = id
-    .replace(new RegExp('\\' + node_path.sep, 'g'), '/');
+    .replace(new RegExp('\\' + node_path.sep, 'g'), '/')
     .toLowerCase();
 
   this._add_locals(id);
@@ -399,73 +413,44 @@ Builder.prototype._out_of_dir = function(dep, file) {
 };
 
 
-Builder.prototype._generateModuleOptions = function(id, mod) {
-  var self = this;
+// Returns `Object`
+// - main: `Boolean`
+// - map: `Object`
+Builder.prototype._generate_module_options = function(id, mod) {
   var pkg = this.pkg;
   var cwd = this.cwd;
-  var asyncDeps = this.asyncDeps;
   var module_options = {};
-  if (asyncDeps.length) {
-    module_options.asyncDeps = true;
-  }
-
-  if (entries.length) {
-    module_options.entries = true;
-  }
 
   if (pkg.main && mod.entry && node_path.resolve(id) === node_path.resolve(cwd, pkg.main)) {
     module_options.main = true;
   }
 
-  var map = this._generateMap(id, mod);
-  module_options.map = map;
+  if (_.keys(mod.resolved).length) {
+    module_options.map = mod.resolved;
+  }
 
-
-  return _.keys(module_options).length ? module_options : null;
-};
-
-
-Builder.prototype._generateMap = function(id, mod) {
-  var self = this;
-  var resolved = mod.resolved;
-  var dependencies = mod.dependencies;
-  var resolvedDeps = _.keys(resolved);
-  var map = {};
-  var nodes = this.nodes;
-  var as = this.pkg.as || {};
-  resolvedDeps.forEach(function(dep) {
-    // to lower cases
-    // resolve dir
-    var result;
-    var realDependency = dependencies[dep];
-
-    if (!self._is_foreign(realDependency)) {
-      result = realDependency.toLowerCase();
-      result = self._generate_module_id(realDependency);
-    } else if (as[dep]) {
-      result = self._apply_dependency_version(realDependency);
-      self.global_map[realDependency] = result;
-    }
-
-    if (result) {
-      map[dep] = result;
-      self._add_locals(result);
-    }
-  });
-  return map;
+  return _.keys(module_options).length
+    ? module_options
+    : null;
 };
 
 
 Builder.prototype._apply_dependency_version = function(module_name) {
   var pkg = this.pkg;
-  var deps = ['dependencies', 'asyncDependencies', 'devDependencies'];
-  for (var i = 0; i < deps.length; i++) {
-    var dep = deps[i];
-    if (pkg[dep] && pkg[dep][module_name]) {
-      return module_name + '@' + pkg[dep][module_name];
+
+  var module_id;
+  ['dependencies', 'asyncDependencies', 'devDependencies'].some(function (key) {
+    var dependencies = pkg[key];
+    if (!dependencies) {
+      return;
     }
-  }
-  return false;
+    if (module_name in dependencies) {
+      module_id = module_name + '@' + dependencies[module_name];
+      return true;
+    }
+  });
+
+  return module_id;
 };
 
 
