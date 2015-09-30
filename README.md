@@ -3,11 +3,12 @@
 ## Usage
 
 ```js
-var builder = require('neuron-builder')(options);
+var builder = require('neuron-builder');
+
+builder(file, options, callback)
   .on('warn', function(message){
     console.warn(message);
-  })
-  .parse(file, callback);
+  });
 ```
 
 - options `Object`
@@ -15,7 +16,7 @@ var builder = require('neuron-builder')(options);
   - targetVersion: target version to build
   - cwd: current working directory
 
-### builder.parse(entry, callback)
+### builder(entry, callback)
 
 - entry `String` the pathname of the entry file to be parsed from
 - callback `function(err, content, parsed)`

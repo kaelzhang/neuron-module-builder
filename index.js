@@ -9,10 +9,10 @@ module.exports = builder;
 // })
 // .parse(filename, callback);
 // ```
-function builder(options) {
+function builder(entry, options, callback) {
   make_sure(options, 'pkg');
   make_sure(options, 'cwd');
-  return new Builder(options);
+  return new Builder(options).parse(entry, callback);
 }
 
 
@@ -44,7 +44,6 @@ function Builder(options) {
   this.cwd = node_path.resolve(options.cwd);
   this.pkg = options.pkg;
   this.locals = {};
-  this.compilers = [];
   this.global_map = {};
 };
 
@@ -64,7 +63,7 @@ Builder.prototype.parse = function(filename, callback) {
     function(nodes, done) {
       self._collect_modules(nodes, done);
     },
-    function(codes, done) { console.log(codes);
+    function(codes, done) {
       self._generate_code(codes, done);
     }
   ], callback);
@@ -76,7 +75,7 @@ Builder.prototype.parse = function(filename, callback) {
 // @param {function(err, nodes)} callback
 Builder.prototype._get_dependency_tree = function(filename, callback) {
   var self = this;
-  walker(filename, {
+  walker({
     allow_cyclic: true,
     check_require_length: true,
     allow_absolute_path: false,
@@ -84,7 +83,9 @@ Builder.prototype._get_dependency_tree = function(filename, callback) {
     require_resolve: true,
     require_async: true
 
-  }, function(err, nodes) {
+  })
+  .register(this.options.compilers)
+  .walk(filename, function(err, nodes) {
     if (err) {
       return callback(err);
     }
@@ -307,21 +308,14 @@ Builder.prototype._wrap = function(filename, mod, callback) {
       + '\n}'
     : '';
 
-  var self = this;
-  this._get_compiled_content(filename, function (err, content) {
-    if (err) {
-      return callback(err);
-    }
-
-    var result = _.template(WRAPPING_TEMPLATE)({
-      id: self._stringify(module_id),
-      deps: self._stringify(resolved_dependencies),
-      code: content,
-      module_options: module_options
-    });
-
-    callback(null, result);
+  var result = _.template(WRAPPING_TEMPLATE)({
+    id: this._stringify(module_id),
+    deps: this._stringify(resolved_dependencies),
+    code: mod.code,
+    module_options: module_options
   });
+
+  callback(null, result);
 };
 
 
@@ -335,74 +329,6 @@ function get_difference (object, relative) {
   }
   return parsed;
 }
-
-
-Builder.prototype._get_compiled_content = function(filename, callback) {
-  var self = this;
-  this._get_content(filename, function (err, content) {
-    if (err) {
-      return callback(err);
-    }
-
-    self._compile(filename, content, callback);
-  });
-};
-
-
-Builder.prototype._get_content = function(filename, callback) {
-  fs.readFile(filename, function (err, content) {
-    callback(err, content && content.toString());
-  });
-};
-
-
-// @param {string|RegExp} pattern
-// @param {Object|Array.<Object>} new_compilers
-// - compiler: `function(content, options, callback)`
-// - options:
-// - pattern:
-Builder.prototype.register = function(new_compilers) {
-  new_compilers = make_array(new_compilers);
-
-  var compilers = this.compilers;
-  new_compilers.forEach(function (c) {
-    c.pattern = util.isRegExp(c.pattern)
-      ? c.pattern
-      : new RegExp(c.pattern);
-
-    compilers.push(c);
-  });
-
-  return this;
-};
-
-
-// Applies all compilers to process the file content
-Builder.prototype._compile = function(filename, content, callback) {
-  var tasks = this.compilers.filter(function (c) {
-    return c.pattern.test(filename);
-  
-  }).reduce(function (prev, c) {
-    function task (content, done) {
-      var options = mix({
-        // adds `filename` to options of each compiler
-        filename: filename
-
-      }, c.options, false);
-      c.compiler(content, options, done);
-    };
-    prev.push(task);
-    return prev;
-
-  }, [init]);
-
-  // If no registered compilers, just return
-  function init (done) {
-    done(null, content);
-  }
-
-  async.waterfall(tasks, callback);
-};
 
 
 // filename: '/path/to/a.js'
