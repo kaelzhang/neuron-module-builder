@@ -7,7 +7,7 @@ module.exports = builder;
 // builder(options)
 // .on('warn', function () {
 // })
-// .parse(filepath, callback);
+// .parse(filename, callback);
 // ```
 function builder(entry, options, callback) {
   make_sure(options, 'pkg');
@@ -51,7 +51,7 @@ function Builder(options) {
 util.inherits(Builder, EE);
 
 
-Builder.prototype.parse = function(filepath, callback) {
+Builder.prototype.parse = function(filename, callback) {
   var self = this;
   var resolved = {};
   var pkg = this.pkg;
@@ -59,7 +59,7 @@ Builder.prototype.parse = function(filepath, callback) {
 
   async.waterfall([
     function(done) {
-      self._get_dependency_tree(filepath, done);
+      self._get_dependency_tree(filename, done);
     },
     function(nodes, done) {
       self._collect_modules(nodes, done);
@@ -72,11 +72,11 @@ Builder.prototype.parse = function(filepath, callback) {
 
 
 // Gets the dependency tree from the entry file
-// @param {String} filepath 
+// @param {String} filename 
 // @param {function(err, nodes)} callback
-Builder.prototype._get_dependency_tree = function(filepath, callback) {
+Builder.prototype._get_dependency_tree = function(filename, callback) {
   var self = this;
-  walker(filepath, {
+  walker(filename, {
     allow_cyclic: true,
     check_require_length: true,
     allow_absolute_path: false,
@@ -141,9 +141,9 @@ Builder.prototype._resolve_module_dependencies = function(id, mod) {
   var deps = mod.dependencies;
   var resolved = {};
 
-  this._resolve_dependencies(id, mod, mod.require, resolved);
-  this._resolve_dependencies(id, mod, mod.resolve, resolved);
-  this._resolve_dependencies(id, mod, mod.async, resolved);
+  ['require', 'resolve', 'async'].forEach(function (key) {
+    this._resolve_dependencies(id, mod, mod[key], resolved);
+  }, this);
 
   return resolved;
 };
@@ -240,50 +240,71 @@ Builder.prototype._generate_code = function(codes, callback) {
 };
 
 
-Builder.prototype._wrap = function(id, mod, callback) {
-  var self = this;
-  var pkg = this.pkg;
-  var opt = this.options;
-  var filepath = id;
-  var resolvedDeps = _.values(mod.resolved);
-  var module_options = this._generateModuleOptions(id, mod);
-  var id = this._generate_module_id(filepath);
-  var code = mod.code.toString().replace(/\r\n/g, '\n');
-  var template = 'define(<%= id %>, <%= deps %>, function(require, exports, module, __filename, __dirname) {\n' 
-    +   '<%= code %>\n'
-    + '}<%= module_options ? module_options : "" %>);';
+var WRAPPING_TEMPLATE = 
+    'define(<%= id %>, <%= deps %>, function(require, exports, module, __filename, __dirname) {\n' 
+  +   '<%= code %>\n'
+  + '}<%= module_options ? ", " + module_options : "" %>);';
 
-  function optionsToString(module_options) {
-    var pairs = [];
-    for (var key in module_options) {
-      var value = module_options[key];
-      value = ({
-        'asyncDeps': 'asyncDeps',
-        'entries': 'entries',
-        'map': _.keys(value).length ? ('mix(' + self._to_locals(value) + ',global_map)') : 'global_map',
-        'main': 'true'
-      })[key];
+// Wrap a commonjs module with wrappings so that it could run in browsers
+Builder.prototype._wrap = function(filename, mod, callback) {
+  // id
+  var module_id = this._generate_module_id(filename);
 
-      pairs.push(key + ':' + value);
-    }
-    return pairs.length ? (', {\n\t' + pairs.join(',\n\t') + '\n}').replace(/\t/g, '    ') : '';
-  }
-
-  module_options = optionsToString(module_options);
-
-  var result = _.template(template)({
-    id: self._to_locals(id),
-    deps: this._to_locals(resolvedDeps),
-    code: this._dealCode(id, code),
-    module_options: module_options
+  // dependencies
+  var resolved_dependencies = _.keys(mod.require).map(function (dep) {
+    return mod.resolved[dep] || dep;
   });
 
-  return result;
+  // options
+  var module_options = this._generateModuleOptions(id, mod);
+
+  var pairs = [];
+  var key;
+  var value;
+  for (key in module_options) {
+    var value = module_options[key];
+    value = ({
+      'map': _.keys(value).length ? ('mix(' + self._to_locals(value) + ',global_map)') : 'global_map',
+      'main': 'true'
+    })[key];
+
+    pairs.push(key + ':' + value);
+  }
+  
+  module_options = pairs.length ? ('{\n\t' + pairs.join(',\n\t') + '\n}').replace(/\t/g, '    ') : '';
+
+  var self = this;
+  this._get_compiled_content(filename, function (err, content) {
+    if (err) {
+      return callback(err);
+    }
+
+    var result = _.template(WRAPPING_TEMPLATE)({
+      id: self._to_locals(module_id),
+      deps: self._to_locals(resolved_dependencies),
+      code: content,
+      module_options: module_options
+    });
+
+    callback(null, result);
+  });
 };
 
 
-Builder.prototype._get_content = function(filepath, callback) {
-  fs.readFile(filepath, function (err, content) {
+Builder.prototype._get_compiled_content = function(filename, callback) {
+  var self = this;
+  this._get_content(filename, function (err, content) {
+    if (err) {
+      return callback(err);
+    }
+
+    self._compile(filename, content, callback);
+  });
+};
+
+
+Builder.prototype._get_content = function(filename, callback) {
+  fs.readFile(filename, function (err, content) {
     callback(err, content && content.toString());
   });
 };
@@ -311,15 +332,15 @@ Builder.prototype.register = function(pattern, new_compilers) {
 
 
 // Applies all compilers to process the file content
-Builder.prototype._compile = function(filepath, content, callback) {
+Builder.prototype._compile = function(filename, content, callback) {
   var tasks = this.compilers.filter(function (c) {
-    return c.pattern.test(filepath);
+    return c.pattern.test(filename);
   
   }).reduce(function (c, i) {
     return function (content, done) {
       var options = mix({
-        // adds `filepath` to options of each compiler
-        filepath: filepath
+        // adds `filename` to options of each compiler
+        filename: filename
 
       }, c.options, false);
       c.compiler(content, options, done);
@@ -327,6 +348,7 @@ Builder.prototype._compile = function(filepath, content, callback) {
 
   }, [init]);
 
+  // If no registered compilers, just return
   function init (done) {
     done(null, content);
   }
@@ -335,35 +357,27 @@ Builder.prototype._compile = function(filepath, content, callback) {
 };
 
 
-Builder.prototype.dealCode = function(id, code) {
-  if (node_path.extname(id) == '.json') {
-    return 'module.exports = ' + code;
-  } else {
-    return code;
-  }
-};
-
-
-// filepath: '/path/to/a.js'
+// filename: '/path/to/a.js'
 // cwd: '/path'
 // -> 'module@0.0.1/to/a.js'
-Builder.prototype._generate_module_id = function(filepath, relative) {
+Builder.prototype._generate_module_id = function(filename, relative) {
   // the exact identifier
   var cwd = this.cwd;
   var pkg = this.pkg;
   var main_id = [pkg.name, pkg.version].join('@');
 
   var relative_path = relative
-    ? filepath 
-    : node_path.relative(cwd, filepath);
+    ? filename 
+    : node_path.relative(cwd, filename);
 
   // -> 'module@0.0.1/folder/foo'
   var id = node_path.join(main_id, relative_path);
 
   // fixes windows paths
-  id = id.replace(new RegExp('\\' + node_path.sep, 'g'), '/');
+  id = id
+    .replace(new RegExp('\\' + node_path.sep, 'g'), '/');
+    .toLowerCase();
 
-  id = id.toLowerCase();
   this._add_locals(id);
   return id;
 };
