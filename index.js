@@ -179,6 +179,7 @@ Builder.prototype._resolve_dependencies = function(id, mod, deps, resolved) {
     }
 
     resolved[module_name] = r;
+    this._add_to_global_map(module_name, r);
     this._add_locals(r);
   }
 
@@ -188,6 +189,23 @@ Builder.prototype._resolve_dependencies = function(id, mod, deps, resolved) {
       deps: not_installed
     }
   }
+};
+
+
+Builder.prototype._add_to_global_map = function(key, value) {
+  this.global_map[key] = value;
+};
+
+
+Builder.prototype._generate_code = function(codes, callback) {
+  var self = this;
+  this._wrap_all(codes, function (err, code) {
+    if (err) {
+      return callback(err);
+    }
+
+    callback(null, self._combile_statements(code));
+  });
 };
 
 
@@ -207,14 +225,8 @@ var CODE_TEMPLATE = [
 
 ].join('\n');
 
-Builder.prototype._generate_code = function(codes, callback) {
-  var self = this;
+Builder.prototype._combile_statements = function(code) {
   var locals = this.locals;
-  var code = _.keys(codes).map(function(id) {
-    var mod = codes[id];
-    return self._wrap(id, mod);
-
-  }).join('\n\n');
 
   var statements = [];
   function declare_varible(name, value, raw) {
@@ -228,24 +240,30 @@ Builder.prototype._generate_code = function(codes, callback) {
     declare_varible(locals[v], v);
   });
 
-  // ['entries', 'asyncDeps', 'async_deps_to_mix'].forEach(function(key) {
-  //   var value = self[key];
-  //   (key == 'async_deps_to_mix' || value.length) && declare_varible(key, self._to_locals(value), true);
-  // });
+  declare_varible('global_map', this._stringify(this.global_map), true);
 
-  // declare_varible(
-  //   'global_map', 
-  //   _.keys(self.global_map).length 
-  //     ? 'mix(' + self._to_locals(self.global_map) + ',async_deps_to_mix)'
-  //     : 'async_deps_to_mix', true
-  // );
-
-  code = _.template(CODE_TEMPLATE)({
+  return _.template(CODE_TEMPLATE)({
     variables: statements.join('\n'),
     code: code
   });
+};
 
-  callback(null, code);
+
+Builder.prototype._wrap_all = function(codes, callback) {
+  var self = this;
+  var tasks = _.keys(codes).map(function (id) {
+    return function (done) {
+      self._wrap(id, codes[id], done);
+    };
+  });
+
+  async.parallel(tasks, function (err, content_array) {
+    if (err) {
+      return callback(err);
+    }
+
+    callback(null, content_array.join('\n\n'));
+  });
 };
 
 
@@ -268,23 +286,18 @@ Builder.prototype._wrap = function(filename, mod, callback) {
   var module_options = this._generate_module_options(id, mod);
 
   var pairs = [];
-  var key;
-  var value;
-  for (key in module_options) {
-    var value = module_options[key];
-    value = ({
-      'map': _.keys(value).length ? ('mix(' + self._to_locals(value) + ', global_map)') : 'global_map',
-      'main': 'true'
-    })[key];
+  if ('main' in module_options) {
+    pairs.push('main: true');
+  }
 
-    pairs.push(key + ':' + value);
+  if ('map' in module_options) {
+    pairs.push('map: ' + self._stringify(get_difference(module_options, this.global_map)));
   }
   
   module_options = pairs.length
     ? '{\n'
       + '  ' + pairs.join(',\n  ')
       + '\n}'
-
     : '';
 
   var self = this;
@@ -294,8 +307,8 @@ Builder.prototype._wrap = function(filename, mod, callback) {
     }
 
     var result = _.template(WRAPPING_TEMPLATE)({
-      id: self._to_locals(module_id),
-      deps: self._to_locals(resolved_dependencies),
+      id: self._stringify(module_id),
+      deps: self._stringify(resolved_dependencies),
       code: content,
       module_options: module_options
     });
@@ -303,6 +316,18 @@ Builder.prototype._wrap = function(filename, mod, callback) {
     callback(null, result);
   });
 };
+
+
+function get_difference (object, relative) {
+  var parsed = {};
+  var key;
+  for(key in object){
+    if (relative[key] !== object[key]) {
+      parsed[key] = object[key];
+    }
+  }
+  return parsed;
+}
 
 
 Builder.prototype._get_compiled_content = function(filename, callback) {
@@ -466,29 +491,36 @@ Builder.prototype._add_locals = function(val) {
 };
 
 
-function not_null (subject) {
-  return subject !== null;
+function just_return (subject) {
+  return subject;
 }
 
-Builder.prototype._to_locals = function(obj) {
+
+// Stringify subject and apply local variables
+Builder.prototype._stringify = function(subject) {
   var locals = this.locals;
 
   function to_locals(item) {
-    return locals[item] || null;
+    return locals[item];
   }
 
-  if (_.isString(obj)) {
-    return to_locals(obj);
+  if (_.isString(subject)) {
+    return to_locals(subject);
   }
 
-  if (_.isArray(obj)) {
-    return '[' + obj.map(to_locals).filter(notNull).join(',') + ']'
-  };
+  if (_.isArray(subject)) {
+    return '[' + subject.map(to_locals).filter(just_return).join(', ') + ']';
+  }
 
-  if (_.isObject(obj)) {
-    return '{' + _.keys(obj).map(function(k) {
-      var value = to_locals(obj[k]);
-      return value ? ('"' + k + '"' + ':' + value) : null
-    }).filter(notNull).join(',') + '}';
+  if (_.isObject(subject)) {
+    return '{\n'
+    + _.keys(subject).map(function(k) {
+      var value = to_locals(subject[k]);
+      return value 
+        ? '\'' + k + '\'' + ':' + value
+        : null;
+
+    }).filter(just_return).join(',\n')
+    + '\n}';
   }
 };
