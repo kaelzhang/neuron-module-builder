@@ -9,12 +9,23 @@ module.exports = builder;
 // })
 // .parse(filepath, callback);
 // ```
-function builder(options) {
-  return new Builder(options || {});
+function builder(entry, options, callback) {
+  make_sure(options, 'pkg');
+  make_sure(options, 'cwd');
+  new Builder(options || {}).parse(entry, callback);
 }
 
-builder.Builder = Builder;
 
+function make_sure (options, key) {
+  if (key in options) {
+    return;
+  }
+
+  throw new Error('`options.' + key + '` must be defined');
+}
+
+
+builder.Builder = Builder;
 
 var fs = require('fs');
 var node_path = require('path');
@@ -23,6 +34,8 @@ var async = require('async');
 var _ = require('underscore');
 var EE = require('events').EventEmitter;
 var walker = require('commonjs-walker');
+var make_array = require('make-array');
+var mix = require('mix2');
 
 function Builder(options) {
   var self = this;
@@ -31,47 +44,8 @@ function Builder(options) {
   this.cwd = node_path.resolve(options.cwd);
   this.pkg = options.pkg;
   this.locals = {};
-
-  this.entries = this.pkg.entries || [];
-  this.asyncDependencies = this.pkg.asyncDependencies || {};
-
-  // this.as = this.pkg.as || {};
-  // this.loaders = options.loaders;
-  // this.loader_version = options.loader_version;
-
-  var asyncDependencies = this.asyncDependencies;
-  // var as = this.as;
-
-  this.async_deps_to_mix = {};
+  this.compilers = [];
   this.global_map = {};
-  this.asyncDeps = [];
-
-  this.entries = this.entries.map(function(entry) {
-    entry = self._generate_module_id(entry, true);
-    self._add_locals(entry);
-    return entry;
-  });
-
-  // Objects.keys(asyncDependencies).forEach(function(name) {
-  //   var version = asyncDependencies[name];
-  //   var id = addToAsync(name, version, name);
-  //   self.asyncDeps.push(id);
-  // });
-
-  // Objects.keys(as).forEach(function(alias) {
-  //   var name = as[alias];
-  //   var version = asyncDependencies[name];
-  //   if (self._is_foreign(alias) && self._is_foreign(name) && asyncDependencies[name]) {
-  //     addToAsync(name, version, alias);
-  //   }
-  // });
-
-  function addToAsync(name, version, key) {
-    var id = [name, version].join('@');
-    self.async_deps_to_mix[key] = id;
-    self._add_locals(id);
-    return id;
-  }
 };
 
 util.inherits(Builder, EE);
@@ -90,7 +64,7 @@ Builder.prototype.parse = function(filepath, callback) {
     function(nodes, done) {
       self._collect_modules(nodes, done);
     },
-    function(codes, done) {
+    function(codes, done) { console.log(codes);
       self._generate_code(codes, done);
     }
   ], callback);
@@ -124,6 +98,7 @@ Builder.prototype._get_dependency_tree = function(filepath, callback) {
 };
 
 
+// Collect all modules which should be bundled into one file
 // @param {function(err, codes)} callback
 // - codes `Object` the `{<path>: <parsed-module>}` map
 Builder.prototype._collect_modules = function(nodes, callback) {
@@ -141,9 +116,9 @@ Builder.prototype._collect_modules = function(nodes, callback) {
       mod.resolved = this._resolve_module_dependencies(id, mod);
     } catch (e) {
       if (e.code == 'ENOTINSTALLED') {
-        errmsg = 'Explicit version of dependency <%= deps.map(function(dep){return '\'' + dep + '\''}).join(\', \') %> <%= deps.length > 1 ? 'are' : 'is' %> not defined in package.json.\n Use \'cortex install <%= deps.join(' ') %> --save\'. file: <%= file %>';
+        errmsg = 'Explicit version of dependency <%= deps.map(function(dep){return dep}).join(", ") %> <%= deps.length > 1 ? "are" : "is" %> not defined in package.json.\n Use "cortex install <%= deps.join(" ") %> --save". file: <%= file %>';
       } else if (e.code == 'EOUTENTRY') {
-        errmsg = 'Relative dependency \'<%= deps[0] %>\' out of main entry\'s directory. file: <%= file %>';
+        errmsg = 'Relative dependency "<%= deps[0] %>" out of main entry\'s directory. file: <%= file %>';
       } else {
         errmsg = e.message;
       }
@@ -155,6 +130,64 @@ Builder.prototype._collect_modules = function(nodes, callback) {
   }
 
   callback(null, codes);
+};
+
+
+// @param {String} id Path(file entry) or package name(foreign package)
+Builder.prototype._resolve_module_dependencies = function(id, mod) {
+  var self = this;
+  var pkg = this.pkg;
+  var cwd = this.cwd;
+  var deps = mod.dependencies;
+  var resolved = {};
+
+  this._resolve_dependencies(id, mod, mod.require, resolved);
+  this._resolve_dependencies(id, mod, mod.resolve, resolved);
+  this._resolve_dependencies(id, mod, mod.async, resolved);
+
+  return resolved;
+};
+
+
+// @param {*Object} resolved
+Builder.prototype._resolve_dependencies = function(id, mod, deps, resolved) {
+  var module_name;
+  var r;
+  var real;
+  var not_installed = [];
+
+  for (module_name in deps) {
+    real = deps[module_name];
+
+    if (this._is_foreign(real)) {
+      // check dependency versions and apply
+      // 'jquery' -> 'jquery@^1.9.2'
+      r = this._apply_dependency_version(real);
+
+      if (!r) {
+        not_installed.push(real);
+      }
+
+    } else {
+      if (this._out_of_dir(module_name, id)) {
+        throw {
+          code: 'EOUTENTRY',
+          deps: [module_name]
+        };
+      }
+      r = this._generate_module_id(real);
+    }
+
+    resolved[module_name] = r;
+    this._add_locals(r);
+  }
+
+  if (not_installed.length) {
+    throw {
+      code: 'ENOTINSTALLED',
+      deps: not_installed
+    }
+  }
 };
 
 
@@ -171,26 +204,33 @@ Builder.prototype._generate_code = function(codes, callback) {
   var code = _.keys(codes).map(function(id) {
     var mod = codes[id];
     return self._wrap(id, mod);
+
   }).join('\n\n');
 
-  var variables = [];
+  var statements = [];
 
-  function declareVarible(name, value, raw) {
+  function declare_varible(name, value, raw) {
     var statement = 'var ' + name + ' = ' + (raw ? value : JSON.stringify(value)) + ';\n';
     if (value) {
-      variables.push(statement);
+      statements.push(statement);
     }
   }
 
   _.keys(locals).forEach(function(v) {
-    declareVarible(locals[v], v);
+    declare_varible(locals[v], v);
   });
 
   ['entries', 'asyncDeps', 'async_deps_to_mix'].forEach(function(key) {
     var value = self[key];
-    (key == 'async_deps_to_mix' || value.length) && declareVarible(key, self._to_locals(value), true);
+    (key == 'async_deps_to_mix' || value.length) && declare_varible(key, self._to_locals(value), true);
   });
-  declareVarible('global_map', _.keys(self.global_map).length ? ('mix(' + self._to_locals(self.global_map) + ',async_deps_to_mix)') : 'async_deps_to_mix', true)
+  declare_varible(
+    'global_map', 
+    _.keys(self.global_map).length 
+      ? 'mix(' + self._to_locals(self.global_map) + ',async_deps_to_mix)'
+      : 'async_deps_to_mix', true
+  );
+  
   code = _.template(CODE_TEMPLATE)({
     variables: variables.join(''),
     code: code
@@ -200,17 +240,18 @@ Builder.prototype._generate_code = function(codes, callback) {
 };
 
 
-Builder.prototype._wrap = function(id, mod) {
+Builder.prototype._wrap = function(id, mod, callback) {
   var self = this;
   var pkg = this.pkg;
   var opt = this.options;
   var filepath = id;
-  var entries = this.entries;
   var resolvedDeps = _.values(mod.resolved);
   var module_options = this._generateModuleOptions(id, mod);
   var id = this._generate_module_id(filepath);
   var code = mod.code.toString().replace(/\r\n/g, '\n');
-  var template = 'define(<%= id %>, <%= deps %>, function(require, exports, module, __filename, __dirname) {\n' + '<%= code %>\n' + '}<%= module_options ? module_options : '' %>);';
+  var template = 'define(<%= id %>, <%= deps %>, function(require, exports, module, __filename, __dirname) {\n' 
+    +   '<%= code %>\n'
+    + '}<%= module_options ? module_options : "" %>);';
 
   function optionsToString(module_options) {
     var pairs = [];
@@ -241,6 +282,59 @@ Builder.prototype._wrap = function(id, mod) {
 };
 
 
+Builder.prototype._get_content = function(filepath, callback) {
+  fs.readFile(filepath, function (err, content) {
+    callback(err, content && content.toString());
+  });
+};
+
+
+// @param {string|RegExp} pattern
+// @param {Object|Array.<Object>} new_compilers
+// - compiler: `function(content, options, callback)`
+// - options:
+// - pattern:
+Builder.prototype.register = function(pattern, new_compilers) {
+  new_compilers = make_array(new_compilers);
+
+  var compilers = this.compilers;
+  new_compilers.forEach(function (c) {
+    c.pattern = util.isRegExp(c.pattern)
+      ? c.pattern
+      : new RegExp(c.pattern);
+
+    compilers.push(c);
+  });
+
+  return this;
+};
+
+
+// Applies all compilers to process the file content
+Builder.prototype._compile = function(filepath, content, callback) {
+  var tasks = this.compilers.filter(function (c) {
+    return c.pattern.test(filepath);
+  
+  }).reduce(function (c, i) {
+    return function (content, done) {
+      var options = mix({
+        // adds `filepath` to options of each compiler
+        filepath: filepath
+
+      }, c.options, false);
+      c.compiler(content, options, done);
+    };
+
+  }, [init]);
+
+  function init (done) {
+    done(null, content);
+  }
+
+  async.waterfall(tasks, callback);
+};
+
+
 Builder.prototype.dealCode = function(id, code) {
   if (node_path.extname(id) == '.json') {
     return 'module.exports = ' + code;
@@ -250,6 +344,9 @@ Builder.prototype.dealCode = function(id, code) {
 };
 
 
+// filepath: '/path/to/a.js'
+// cwd: '/path'
+// -> 'module@0.0.1/to/a.js'
 Builder.prototype._generate_module_id = function(filepath, relative) {
   // the exact identifier
   var cwd = this.cwd;
@@ -284,7 +381,7 @@ Builder.prototype._is_foreign = function(str) {
 
 Builder.prototype._out_of_dir = function(dep, file) {
   var mod_path = node_path.resolve(node_path.join(node_path.dirname(file), dep));
-  return mod_node_path.indexOf(this.cwd) == -1;
+  return mod_path.indexOf(this.cwd) == -1;
 };
 
 
@@ -292,7 +389,6 @@ Builder.prototype._generateModuleOptions = function(id, mod) {
   var self = this;
   var pkg = this.pkg;
   var cwd = this.cwd;
-  var entries = this.entries;
   var asyncDeps = this.asyncDeps;
   var module_options = {};
   if (asyncDeps.length) {
@@ -359,65 +455,6 @@ Builder.prototype._apply_dependency_version = function(module_name) {
 };
 
 
-// @param {String} id Path(file entry) or package name(foreign package)
-Builder.prototype._resolve_module_dependencies = function(id, mod) {
-  var self = this;
-  var pkg = this.pkg;
-  var cwd = this.cwd;
-  var deps = mod.dependencies;
-  var notInstalled = [];
-  var resolved = {};
-
-  this._resolve_dependencies(id, mod, mod.require, resolved);
-  this._resolve_dependencies(id, mod, mod.resolve, resolved);
-  this._resolve_dependencies(id, mod, mod.async, resolved);
-
-  return resolved;
-};
-
-
-// @param {*Object} resolved
-Builder.prototype._resolve_dependencies = function(id, mod, deps, resolved) {
-  var module_name;
-  var r;
-  var real;
-  var not_installed = [];
-
-  for (module_name in deps) {
-    real = deps[module_name];
-
-    if (self._is_foreign(real)) {
-      // check dependency versions and apply
-      // 'jquery' -> 'jquery@^1.9.2'
-      r = self._apply_dependency_version(real);
-
-      if (!r) {
-        not_installed.push(real);
-      }
-
-    } else {
-      if (self._out_of_dir(module_name, id)) {
-        throw {
-          code: 'EOUTENTRY',
-          deps: [module_name]
-        };
-      }
-      r = self._generate_module_id(real);
-    }
-
-    resolved[module_name] = r;
-    self._add_locals(r);
-  }
-
-  if (not_installed.length) {
-    throw {
-      code: 'ENOTINSTALLED',
-      deps: not_installed
-    }
-  }
-};
-
-
 // {
 //   '/path/to/a.js': '_0',
 //   '/path/to/b.js': '_1'
@@ -437,22 +474,22 @@ function not_null (subject) {
 Builder.prototype._to_locals = function(obj) {
   var locals = this.locals;
 
-  function toLocals(item) {
+  function to_locals(item) {
     return locals[item] || null;
   }
 
   if (_.isString(obj)) {
-    return toLocals(obj);
+    return to_locals(obj);
   }
 
   if (_.isArray(obj)) {
-    return '[' + obj.map(toLocals).filter(notNull).join(',') + ']'
+    return '[' + obj.map(to_locals).filter(notNull).join(',') + ']'
   };
 
   if (_.isObject(obj)) {
     return '{' + _.keys(obj).map(function(k) {
-      var value = toLocals(obj[k]);
-      return value ? (''' + k + ''' + ':' + value) : null
+      var value = to_locals(obj[k]);
+      return value ? ('"' + k + '"' + ':' + value) : null
     }).filter(notNull).join(',') + '}';
   }
 };
