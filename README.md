@@ -11,21 +11,19 @@ builder(file, options, callback)
   });
 ```
 
-- options `Object`
-  - pkg: mixed package json format of project
-  - targetVersion: target version to build
-  - cwd: current working directory
-
-### builder(entry, callback)
+### builder(entry, options, callback)
 
 - entry `String` the pathname of the entry file to be parsed from
-- callback `function(err, content, parsed)`
+- options `Object`
+  - pkg: `Object` mixed package json format of project
+  - cwd: `String` current working directory
+  - compilers: `Object|Array.<Object>`
+- callback `function(err, content)`
 
 `callback` will get `err`, `contents` and `parsed` as its arguments, where:
 
 - err `Error`
 - content `String` the parsed content
-- parsed `Object` the dict which contains all infomations
 
 #### arguments
   
