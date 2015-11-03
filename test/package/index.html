@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<head>
+<meta charset="UTF-8">
+<title>openapp</title>
+<meta http-equiv="Content-Type">
+<meta content="text/html; charset=utf-8">
+<meta charset="utf-8">
+<meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="format-detection" content="telephone=no">
+<script type="text/javascript" src="./mod/neuron.js"></script>
+<script>
+neuron.config({
+  path: './mod'
+});
+</script>
+</head>
+<body>
+  <div id="container"></div>
+<script>
+facade('hello', {
+  name: 'kael',
+  book: {
+    name: 'The Brief',
+    price: 100
+  }
+});
+</script>
+</body>
+
+</html>
+
+<!-- {{facade('hello', {{data}})}} -->

@@ -4,7 +4,7 @@
   "description": "Wrap commonjs module/1.0 javascript files for [neuron](http://github.com/kaelzhang/neuron)",
   "main": "index.js",
   "scripts": {
-    "test": "./node_modules/.bin/mocha ./test"
+    "test": "./node_modules/.bin/mocha ./test/demo.js"
   },
   "repository": {
     "type": "git",
@@ -24,6 +24,7 @@
   "devDependencies": {
     "async": "^0.9.2",
     "chai": "~1.8.0",
+    "fs-extra": "^0.24.0",
     "jsonfile": "^1.2.0",
     "mocha": "^1.18.2",
     "neuron-jade-compiler": "^1.0.0",
