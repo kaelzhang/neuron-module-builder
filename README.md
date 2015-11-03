@@ -18,6 +18,7 @@ builder(file, options, callback)
   - pkg: `Object` mixed package json format of project
   - cwd: `String` current working directory
   - compilers: `Object|Array.<Object>`
+  - allow_implicit_dependencies: `Boolean` whether allows implicit dependencies. If true and a dependency is not found in `pkg`, it will be treated as the latest version.
 - callback `function(err, content)`
 
 `callback` will get `err`, `contents` and `parsed` as its arguments, where:

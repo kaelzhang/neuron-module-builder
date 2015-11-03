@@ -117,7 +117,7 @@ Builder.prototype._collect_modules = function(nodes, callback) {
       mod.resolved = this._resolve_module_dependencies(id, mod);
     } catch (e) {
       if (e.code == 'ENOTINSTALLED') {
-        errmsg = 'Explicit version of dependency <%= deps.map(function(dep){return dep}).join(", ") %> <%= deps.length > 1 ? "are" : "is" %> not defined in package.json.\n Use "cortex install <%= deps.join(" ") %> --save". file: <%= file %>';
+        errmsg = 'Explicit version of dependency <%= deps.map(function(dep){return dep}).join(", ") %> <%= deps.length > 1 ? "are" : "is" %> not defined.\n file: <%= file %>';
       } else if (e.code == 'EOUTENTRY') {
         errmsg = 'Relative dependency "<%= deps[0] %>" out of main entry\'s directory. file: <%= file %>';
       } else {
@@ -408,7 +408,13 @@ Builder.prototype._apply_dependency_version = function(module_name) {
     }
   });
 
-  return module_id;
+  return module_id
+    ? module_id
+
+    // If allow implicit dependencies
+    : this.options.allow_implicit_dependencies
+      ? module_name + '@*'
+      : module_id;
 };
 
 
