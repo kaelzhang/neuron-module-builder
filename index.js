@@ -82,10 +82,13 @@ Builder.prototype._get_dependency_tree = function(filename, callback) {
     extensions: ['.js', '.json'],
     require_resolve: true,
     require_async: true
-
+  })
+  .on('warn', function(message) {
+    self.emit('warn', message);
   })
   .register(this.options.compilers)
-  .walk(filename, function(err, nodes) {
+  .walk(filename)
+  .done(function(err, nodes) {
     if (err) {
       return callback(err);
     }
@@ -93,9 +96,6 @@ Builder.prototype._get_dependency_tree = function(filename, callback) {
     self.nodes = nodes;
     callback(null, nodes);
   })
-  .on('warn', function(message) {
-    self.emit('warn', message);
-  });
 };
 
 
