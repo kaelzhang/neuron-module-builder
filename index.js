@@ -95,7 +95,7 @@ Builder.prototype._get_dependency_tree = function(filename, callback) {
 
     self.nodes = nodes;
     callback(null, nodes);
-  })
+  });
 };
 
 
