@@ -11,9 +11,9 @@ builder(file, options, callback)
   });
 ```
 
-### builder(entry, options, callback)
+### builder(filename, options, callback)
 
-- entry `String` the pathname of the entry file to be parsed from
+- filename `String` the pathname of the entry file to be parsed from
 - options `Object`
   - pkg: `Object` mixed package json format of project
   - cwd: `String` current working directory
@@ -26,8 +26,5 @@ builder(file, options, callback)
 - err `Error`
 - content `String` the parsed content
 
-#### arguments
-  
-- file `Path` the parsing file
 
 
