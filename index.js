@@ -287,13 +287,13 @@ Builder.prototype._wrap = function(filename, mod, callback) {
   var module_options = this._generate_module_options(filename, mod);
 
   var pairs = [];
-  if ('main' in module_options) {
+  if (module_options.main) {
     pairs.push('main: true');
   }
 
   var different;
   var map;
-  if ('map' in module_options) {
+  if (module_options.map) {
     different = get_difference(module_options.map, this.global_map);
     map = _.keys(different).length
       ? 'mix(' + this._stringify(different) + ', global_map)'
@@ -381,7 +381,10 @@ Builder.prototype._generate_module_options = function(id, mod) {
   var cwd = this.cwd;
   var module_options = {};
 
-  if (pkg.main && mod.entry && node_path.resolve(id) === node_path.resolve(cwd, pkg.main)) {
+  if (
+    pkg.main && 
+    node_path.resolve(id) === node_path.resolve(cwd, pkg.main)
+  ) {
     module_options.main = true;
   }
 
