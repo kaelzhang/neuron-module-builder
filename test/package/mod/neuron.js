@@ -671,7 +671,7 @@ function load_by_module (mod) {
 function module_to_absolute_url (mod) {
   var id = mod.main
     // if is a main module, we will load the source file by package
-    // neuron-builder will always build the main entry file
+    // neuron-module-builder will always build the main entry file
     //   as a javascript file with the '.js' extension
 
     // 1.

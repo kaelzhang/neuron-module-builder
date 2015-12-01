@@ -1,9 +1,11 @@
-# neuron-builder [![NPM version](https://badge.fury.io/js/neuron-builder.png)](http://badge.fury.io/js/neuron-builder) [![Build Status](https://travis-ci.org/cortexjs/neuron-builder.png?branch=master)](https://travis-ci.org/cortexjs/neuron-builder) [![Dependency Status](https://gemnasium.com/cortexjs/neuron-builder.png)](https://gemnasium.com/cortexjs/neuron-builder)
+[![Build Status](https://travis-ci.org/kaelzhang/neuron-module-builder.png?branch=master)](https://travis-ci.org/kaelzhang/neuron-module-builder)
+
+# neuron-module-builder
 
 ## Usage
 
 ```js
-var builder = require('neuron-builder');
+var builder = require('neuron-module-builder');
 
 builder(file, options, callback)
   .on('warn', function(message){
