@@ -142,7 +142,7 @@ Builder.prototype._resolve_module_dependencies = function(id, mod) {
   var deps = mod.dependencies
   var resolved = {}
 
-  ['require', 'resolve', 'async'].forEach(function (key) {
+  ;['require', 'resolve', 'async'].forEach(function (key) {
     this._resolve_dependencies(id, mod, mod[key], resolved)
   }, this)
 
