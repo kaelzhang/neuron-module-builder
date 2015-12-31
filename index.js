@@ -92,7 +92,7 @@ Builder.prototype._get_dependency_tree = function(filename, callback) {
     if (err) {
       return callback(err)
     }
-console.log(nodes)
+
     self.nodes = nodes
     callback(null, nodes)
   })
