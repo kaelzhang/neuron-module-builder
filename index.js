@@ -211,15 +211,9 @@ Builder.prototype._generate_code = function(codes, callback) {
 
 
 var CODE_TEMPLATE = [
-  '(function(){'         ,
+  '(function(){'          ,
   ''                      ,
-  'function mix(a, b){'   , 
-  '  for(var k in b) {'   ,
-  '    a[k] = b[k]'      ,
-  '  }'                   ,
-  '  return a'           ,
-  '}'                     ,
-  '<%= variables %>'      , 
+  '<%= variables %>'      ,
   '<%= code %>'           ,
   ''                      ,
   '})()'
@@ -296,7 +290,7 @@ Builder.prototype._wrap = function(filename, mod, callback) {
   if (module_options.map) {
     different = get_difference(module_options.map, this.global_map)
     map = _.keys(different).length
-      ? 'mix(' + this._stringify(different) + ', global_map)'
+      ? 'neuron.mix(' + this._stringify(different) + ', global_map)'
       : 'global_map'
 
     pairs.push('map: ' + map)
