@@ -257,7 +257,7 @@ Builder.prototype._wrap_all = function(codes, callback) {
       return callback(err)
     }
 
-    callback(null, content_array.join('\n\n'))
+    callback(null, content_array.filter(Boolean).join('\n\n'))
   })
 }
 
@@ -269,6 +269,11 @@ var WRAPPING_TEMPLATE =
 
 // Wrap a commonjs module with wrappings so that it could run in browsers
 Builder.prototype._wrap = function(filename, mod, callback) {
+  // Only wrap modules that have been `require()`d
+  if (!~mod.type.indexOf('require')) {
+    return callback(null)
+  }
+
   // id
   var module_id = this._generate_module_id(filename)
 
@@ -305,7 +310,9 @@ Builder.prototype._wrap = function(filename, mod, callback) {
   var result = _.template(WRAPPING_TEMPLATE)({
     id: this._stringify(module_id),
     deps: this._stringify(resolved_dependencies),
-    code: mod.code,
+    code: mod.json
+      ? 'module.exports = ' + mod.content
+      : mod.content,
     module_options: module_options
   })
 
