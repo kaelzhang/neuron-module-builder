@@ -220,7 +220,7 @@ Builder.prototype._generate_code = function(filename, codes, callback) {
       options.babel.filename = filename
 
       try {
-        code = babel.transform(code, options.babel)
+        code = babel.transform(code, options.babel).code
       } catch(e) {
         return callback(e)
       }

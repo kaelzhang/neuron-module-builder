@@ -34,7 +34,6 @@ thumbs.db
 .svn
 .CVS
 .idea
-node_modules
 old/
 *-old/
 *-notrack/
@@ -43,5 +42,10 @@ combo/
 reference/
 jscoverage_lib/
 temp/
+
+# babylon bug
+!node_modules/
+node_modules/*
+!node_modules/babylon/
 
 
