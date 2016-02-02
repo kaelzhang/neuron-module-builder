@@ -12,6 +12,15 @@ module.exports = builder
 function builder(entry, options, callback) {
   make_sure(options, 'pkg')
   make_sure(options, 'cwd')
+
+  if (Object(options.babel) !== options.babel && options.babel !== false) {
+    options.babel = {}
+  }
+
+  options.babel = mix({
+    presets: ['es2015']
+  }, options.babel, false)
+
   return new Builder(options).parse(entry, callback)
 }
 
@@ -36,6 +45,7 @@ var EE = require('events').EventEmitter
 var walker = require('commonjs-walker')
 var make_array = require('make-array')
 var mix = require('mix2')
+var babel = require('babel-core')
 
 function Builder(options) {
   var self = this
@@ -64,14 +74,14 @@ Builder.prototype.parse = function(filename, callback) {
       self._collect_modules(nodes, done)
     },
     function(codes, done) {
-      self._generate_code(codes, done)
+      self._generate_code(filename, codes, done)
     }
   ], callback)
 }
 
 
 // Gets the dependency tree from the entry file
-// @param {String} filename 
+// @param {String} filename
 // @param {function(err, nodes)} callback
 Builder.prototype._get_dependency_tree = function(filename, callback) {
   var self = this
@@ -198,11 +208,22 @@ Builder.prototype._add_to_global_map = function(key, value) {
 }
 
 
-Builder.prototype._generate_code = function(codes, callback) {
+Builder.prototype._generate_code = function(filename, codes, callback) {
   var self = this
+  var options = this.options
   this._wrap_all(codes, function (err, code) {
     if (err) {
       return callback(err)
+    }
+
+    if (options.babel) {
+      options.babel.filename = filename
+
+      try {
+        code = babel.transform(code, options.babel)
+      } catch(e) {
+        return callback(e)
+      }
     }
 
     callback(null, self._combile_statements(code))
@@ -262,8 +283,8 @@ Builder.prototype._wrap_all = function(codes, callback) {
 }
 
 
-var WRAPPING_TEMPLATE = 
-    'define(<%= id %>, <%= deps %>, function(require, exports, module, __filename, __dirname) {\n' 
+var WRAPPING_TEMPLATE =
+    'define(<%= id %>, <%= deps %>, function(require, exports, module, __filename, __dirname) {\n'
   +   '<%= code %>\n'
   + '}<%= module_options ? ", " + module_options : "" %>)'
 
@@ -300,7 +321,7 @@ Builder.prototype._wrap = function(filename, mod, callback) {
 
     pairs.push('map: ' + map)
   }
-  
+
   module_options = pairs.length
     ? '{\n'
       + '  ' + pairs.join(',\n  ')
@@ -342,7 +363,7 @@ Builder.prototype._generate_module_id = function(filename, relative) {
   var main_id = [pkg.name, pkg.version].join('@')
 
   var relative_path = relative
-    ? filename 
+    ? filename
     : node_path.relative(cwd, filename)
 
   // -> 'module@0.0.1/folder/foo'
@@ -383,7 +404,7 @@ Builder.prototype._generate_module_options = function(id, mod) {
   var module_options = {}
 
   if (
-    pkg.main && 
+    pkg.main &&
     node_path.resolve(id) === node_path.resolve(cwd, pkg.main)
   ) {
     module_options.main = true
@@ -459,7 +480,7 @@ Builder.prototype._stringify = function(subject) {
     return '{\n'
     + _.keys(subject).map(function(k) {
       var value = to_locals(subject[k])
-      return value 
+      return value
         ? '\'' + k + '\'' + ':' + value
         : null
 
