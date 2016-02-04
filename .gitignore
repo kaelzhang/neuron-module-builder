@@ -42,10 +42,4 @@ combo/
 reference/
 jscoverage_lib/
 temp/
-
-# babylon bug
-!node_modules/
-node_modules/*
-!node_modules/babylon/
-
-
+node_modules
