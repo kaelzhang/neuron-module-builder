@@ -45,7 +45,7 @@ var EE = require('events').EventEmitter
 var walker = require('commonjs-walker')
 var make_array = require('make-array')
 var mix = require('mix2')
-var babel = require('babel-core-no-strict')
+var babel = require('babel-core')
 
 function Builder(options) {
   var self = this
