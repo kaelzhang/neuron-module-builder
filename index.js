@@ -232,7 +232,7 @@ Builder.prototype._generate_code = function(filename, codes, callback) {
 
 
 var CODE_TEMPLATE = [
-  '(function(){'          ,
+  ';(function(){'         ,
   ''                      ,
   '<%= variables %>'      ,
   '<%= code %>'           ,
