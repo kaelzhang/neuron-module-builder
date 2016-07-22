@@ -18,7 +18,8 @@ function builder(entry, options, callback) {
   }
 
   options.babel = mix({
-    presets: ['es2015']
+    presets: ['es2015'],
+    plugins: ['transform-es2015-modules-commonjs']
   }, options.babel, false)
 
   return new Builder(options).parse(entry, callback)
