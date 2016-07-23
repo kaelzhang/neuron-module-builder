@@ -1,6 +1,6 @@
 {
   "name": "neuron-module-builder",
-  "version": "6.2.0",
+  "version": "7.0.0",
   "description": "Wrap commonjs module/1.0 javascript files for [neuron](http://github.com/kaelzhang/neuron)",
   "main": "index.js",
   "scripts": {
@@ -35,8 +35,7 @@
     "babel-core": "^6.4.5",
     "babel-plugin-transform-es2015-modules-commonjs": "^6.10.3",
     "babel-preset-es2015": "^6.3.13",
-    "commonjs-walker": "^8.0.0",
-    "jade-edge": "^1.11.0",
+    "module-walker": "^2.0.1",
     "make-array": "^0.1.2",
     "mix2": "^1.0.1",
     "underscore": "^1.8.3"

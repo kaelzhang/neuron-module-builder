@@ -18,8 +18,7 @@ function builder(entry, options, callback) {
   }
 
   options.babel = mix({
-    presets: ['es2015'],
-    plugins: ['transform-es2015-modules-commonjs']
+    presets: ['es2015']
   }, options.babel, false)
 
   return new Builder(options).parse(entry, callback)
@@ -43,7 +42,7 @@ var util = require('util')
 var async = require('async')
 var _ = require('underscore')
 var EE = require('events').EventEmitter
-var walker = require('commonjs-walker')
+var walker = require('module-walker')
 var make_array = require('make-array')
 var mix = require('mix2')
 var babel = require('babel-core')
@@ -68,14 +67,14 @@ Builder.prototype.parse = function(filename, callback) {
   var locals = this.locals
 
   async.waterfall([
-    function(done) {
+    function (done) {
       self._get_dependency_tree(filename, done)
     },
-    function(nodes, done) {
-      self._collect_modules(nodes, done)
+    function (done) {
+      self._collect_modules(done)
     },
-    function(codes, done) {
-      self._generate_code(filename, codes, done)
+    function (done) {
+      self._generate_code(filename, done)
     }
   ], callback)
 }
@@ -85,47 +84,47 @@ Builder.prototype.parse = function(filename, callback) {
 // @param {String} filename
 // @param {function(err, nodes)} callback
 Builder.prototype._get_dependency_tree = function(filename, callback) {
-  var self = this
   walker({
-    allow_cyclic: true,
-    check_require_length: true,
-    allow_absolute_path: false,
+    allowCyclic: true,
+    checkRequireLength: true,
+    allowAbsoluteDependency: false,
     extensions: ['.js', '.json'],
-    require_resolve: true,
-    require_async: true
+    requireResolve: true,
+    requireAsync: true,
+    commentRequire: true,
+    allowNonLiteralRequire: false,
+    allowImportExportEverywhere: true,
+    allowReturnOutsideFunction: true,
+    sourceType: 'module'
   })
-  .on('warn', function(message) {
-    self.emit('warn', message)
+  .on('warn', message => {
+    this.emit('warn', message)
   })
   .register(this.options.compilers)
   .walk(filename)
-  .done(function(err, nodes) {
-    if (err) {
-      return callback(err)
-    }
-
-    self.nodes = nodes
-    callback(null, nodes)
-  })
+  .then(nodes => {
+    this.nodes = nodes
+    callback(null)
+  }, callback)
 }
 
 
 // Collect all modules which should be bundled into one file
 // @param {function(err, codes)} callback
 // - codes `Object` the `{<path>: <parsed-module>}` map
-Builder.prototype._collect_modules = function(nodes, callback) {
-  var codes = {}
-  var errmsg = ''
-  var id
-  var mod
+Builder.prototype._collect_modules = function(callback) {
+  let id
+  let node
+  let nodes = this.nodes
+
   for (id in nodes) {
-    mod = nodes[id]
-    if (mod.foreign) {
+    node = nodes[id]
+    if (node.foreign) {
       continue
     }
 
     try {
-      mod.resolved = this._resolve_module_dependencies(id, mod)
+      node.resolved = this._resolve_module_dependencies(id, node)
     } catch (e) {
       if (e.code == 'ENOTINSTALLED') {
         errmsg = 'Explicit version of dependency <%= deps.map(function(dep){return dep}).join(", ") %> <%= deps.length > 1 ? "are" : "is" %> not defined.\n file: <%= file %>'
@@ -134,14 +133,13 @@ Builder.prototype._collect_modules = function(nodes, callback) {
       } else {
         errmsg = e.message
       }
+
       e.file = id
       return callback(new Error(_.template(errmsg)(e)))
     }
-
-    codes[id] = mod
   }
 
-  callback(null, codes)
+  callback(null)
 }
 
 
@@ -209,10 +207,10 @@ Builder.prototype._add_to_global_map = function(key, value) {
 }
 
 
-Builder.prototype._generate_code = function(filename, codes, callback) {
-  var self = this
-  var options = this.options
-  this._wrap_all(codes, function (err, code) {
+Builder.prototype._generate_code = function(filename, callback) {
+  let options = this.options
+
+  this._wrap_all(this.nodes, (err, code) => {
     if (err) {
       return callback(err)
     }
@@ -227,7 +225,7 @@ Builder.prototype._generate_code = function(filename, codes, callback) {
       }
     }
 
-    callback(null, self._combile_statements(code))
+    callback(null, this._combile_statements(code))
   })
 }
 
@@ -284,7 +282,7 @@ Builder.prototype._wrap_all = function(codes, callback) {
 }
 
 
-var WRAPPING_TEMPLATE =
+const WRAPPING_TEMPLATE =
     'define(<%= id %>, <%= deps %>, function(require, exports, module, __filename, __dirname) {\n'
   +   '<%= code %>\n'
   + '}<%= module_options ? ", " + module_options : "" %>)'
@@ -333,8 +331,8 @@ Builder.prototype._wrap = function(filename, mod, callback) {
     id: this._stringify(module_id),
     deps: this._stringify(resolved_dependencies),
     code: mod.json
-      ? 'module.exports = ' + mod.content
-      : mod.content,
+      ? 'module.exports = ' + mod.code
+      : mod.code,
     module_options: module_options
   })
 
