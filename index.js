@@ -67,14 +67,14 @@ Builder.prototype.parse = function(filename, callback) {
   var locals = this.locals
 
   async.waterfall([
-    function (done) {
-      self._get_dependency_tree(filename, done)
+    done => {
+      this._get_dependency_tree(filename, done)
     },
-    function (done) {
-      self._collect_modules(done)
+    done => {
+      this._collect_modules(done)
     },
-    function (done) {
-      self._generate_code(filename, done)
+    done => {
+      this._generate_code(filename, done)
     }
   ], callback)
 }
@@ -290,7 +290,13 @@ const WRAPPING_TEMPLATE =
 // Wrap a commonjs module with wrappings so that it could run in browsers
 Builder.prototype._wrap = function(filename, mod, callback) {
   // Only wrap modules that have been `require()`d
-  if (!~mod.type.indexOf('require')) {
+  if (
+    !~mod.type.indexOf('require')
+
+    // do not build foreign packages
+    // TODO: option to bundle foreign packages
+    || mod.foreign
+  ) {
     return callback(null)
   }
 
