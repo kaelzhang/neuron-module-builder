@@ -2,6 +2,8 @@
 
 module.exports = builder
 
+const module_id = require('module-id')
+
 // ## Usage
 // ```js
 // builder(options)
@@ -148,8 +150,10 @@ Builder.prototype._collect_modules = function(callback) {
       if (!this._check_package_name(id)) {
         const name = node.id
         const dependent = this._get_dependent(name, nodes)
+        const package_name = module_id(name).name
+
         return callback(new Error(
-`invalid package name "${name}" in "${dependent.id}"
+`invalid package name "${package_name}" in "${dependent.id}"
 
     A package name should:
       - only contains letters, numbers, dot(.), dash(-), or underscore(_);
