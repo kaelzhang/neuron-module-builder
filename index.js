@@ -53,6 +53,7 @@ function Builder(options) {
   this.options = options
   this.cwd = node_path.resolve(options.cwd)
   this.pkg = options.pkg
+
   this.locals = {}
   this.global_map = {}
 }
@@ -109,6 +110,29 @@ Builder.prototype._get_dependency_tree = function(filename, callback) {
 }
 
 
+const REGEX_PACKAGE_NAME = /^[a-z][a-z0-9-_.]*[a-z0-9](?:$|\/)/i
+Builder.prototype._check_package_name = function(name) {
+  return REGEX_PACKAGE_NAME.test(name)
+}
+
+
+Builder.prototype._get_dependent = function(name, nodes) {
+  const ids = Object.keys(nodes)
+  const index_found = ids.findIndex((id) => {
+    const dependent = nodes[id]
+    if (
+      (name in dependent.require)
+      || (name in dependent.async)
+      || (name in dependent.resolve)
+    ) {
+      return true
+    }
+  })
+
+  return nodes[ids[index_found]]
+}
+
+
 // Collect all modules which should be bundled into one file
 // @param {function(err, codes)} callback
 // - codes `Object` the `{<path>: <parsed-module>}` map
@@ -119,7 +143,22 @@ Builder.prototype._collect_modules = function(callback) {
 
   for (id in nodes) {
     node = nodes[id]
+
     if (node.foreign) {
+      if (!this._check_package_name(id)) {
+        const name = node.id
+        const dependent = this._get_dependent(name, nodes)
+        return callback(new Error(
+`invalid package name "${name}" in "${dependent.id}"
+
+    A package name should:
+      - only contains letters, numbers, dot(.), dash(-), or underscore(_);
+      - start with a letter;
+      - end with a letter or number.
+`
+        ))
+      }
+
       continue
     }
 
