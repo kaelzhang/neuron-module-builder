@@ -1,6 +1,6 @@
 {
   "name": "neuron-module-builder",
-  "version": "7.0.4",
+  "version": "7.0.5",
   "description": "Wrap commonjs module/1.0 javascript files for [neuron](http://github.com/kaelzhang/neuron)",
   "main": "index.js",
   "scripts": {

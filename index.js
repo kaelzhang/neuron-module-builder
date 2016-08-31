@@ -156,7 +156,7 @@ Builder.prototype._collect_modules = function(callback) {
 `invalid package name "${package_name}" in "${dependent.id}"
 
     A package name should:
-      - only contains letters, numbers, dot(.), dash(-), or underscore(_);
+      - only contain letters, numbers, dot(.), dash(-), or underscore(_);
       - start with a letter;
       - end with a letter or number.
 `
