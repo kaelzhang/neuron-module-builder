@@ -95,7 +95,7 @@ Builder.prototype._get_dependency_tree = function(filename, callback) {
     requireResolve: true,
     requireAsync: true,
     commentRequire: true,
-    allowNonLiteralRequire: false,
+    allowNonLiteralRequire: true,
     allowImportExportEverywhere: true,
     allowReturnOutsideFunction: true,
     sourceType: 'module'
