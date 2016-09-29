@@ -20,7 +20,7 @@ function builder(entry, options, callback) {
   }
 
   options.babel = mix({
-    presets: ['stage-2']
+    presets: ['es2015']
   }, options.babel, false)
 
   return new Builder(options).parse(entry, callback)
