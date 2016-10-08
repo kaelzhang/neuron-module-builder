@@ -2,8 +2,6 @@
 
 module.exports = builder
 
-const module_id = require('module-id')
-
 // ## Usage
 // ```js
 // builder(options)
@@ -14,14 +12,6 @@ const module_id = require('module-id')
 function builder(entry, options, callback) {
   make_sure(options, 'pkg')
   make_sure(options, 'cwd')
-
-  if (Object(options.babel) !== options.babel && options.babel !== false) {
-    options.babel = {}
-  }
-
-  options.babel = mix({
-    presets: ['es2015']
-  }, options.babel, false)
 
   return new Builder(options).parse(entry, callback)
 }
@@ -38,16 +28,49 @@ function make_sure (options, key) {
 
 builder.Builder = Builder
 
-var fs = require('fs')
-var node_path = require('path')
-var util = require('util')
-var async = require('async')
-var _ = require('underscore')
-var EE = require('events').EventEmitter
-var walker = require('module-walker')
-var make_array = require('make-array')
-var mix = require('mix2')
-var babel = require('babel-core')
+const fs = require('fs')
+const node_path = require('path')
+const util = require('util')
+const async = require('async')
+const _ = require('underscore')
+const EE = require('events').EventEmitter
+const walker = require('module-walker')
+const make_array = require('make-array')
+const mix = require('mix2')
+const babel = require('babel-core')
+const babylon = require('babylon')
+const codeFrame = require('babel-code-frame')
+const module_id = require('module-id')
+
+
+function parseAst (code, sourceFilename) {
+  let ast
+
+  try {
+    ast = babylon.parse(code, {
+      sourceFilename,
+      allowImportExportEverywhere: true,
+      allowReturnOutsideFunction: true,
+      sourceType: 'module',
+      plugins: [
+        'objectRestSpread'
+      ]
+    })
+  } catch (error) {
+    const loc = error.loc
+    const printed = codeFrame(code, loc.line, loc.col)
+    let message = `${error.message} while parsing "${sourceFilename}"
+
+${printed}
+`
+    let e = new SyntaxError(message)
+    e.loc = loc
+    throw e
+  }
+
+  return ast
+}
+
 
 function Builder(options) {
   var self = this
@@ -95,10 +118,7 @@ Builder.prototype._get_dependency_tree = function(filename, callback) {
     requireResolve: true,
     requireAsync: true,
     commentRequire: true,
-    allowNonLiteralRequire: true,
-    allowImportExportEverywhere: true,
-    allowReturnOutsideFunction: true,
-    sourceType: 'module'
+    parse: parseAst
   })
   .on('warn', message => {
     this.emit('warn', message)
@@ -259,11 +279,21 @@ Builder.prototype._generate_code = function(filename, callback) {
     }
 
     if (options.babel) {
-      options.babel.filename = filename
+      let ast
+      try {
+        ast = parseAst(code, filename)
+      } catch (e) {
+        return callback(e)
+      }
+
+      const babelOptions = mix({
+        filename
+      }, options.babel, false)
 
       try {
-        code = babel.transform(code, options.babel).code
+        code = babel.transformFromAst(ast, code, babelOptions).code
       } catch(e) {
+        console.log(node.ast)
         return callback(e)
       }
     }
