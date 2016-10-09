@@ -1,6 +1,6 @@
 {
   "name": "neuron-module-builder",
-  "version": "7.2.1",
+  "version": "8.0.0",
   "description": "Wrap commonjs module/1.0 javascript files for [neuron](http://github.com/kaelzhang/neuron)",
   "main": "index.js",
   "scripts": {
@@ -32,9 +32,7 @@
   },
   "dependencies": {
     "async": "^0.9.2",
-    "babel-code-frame": "^6.16.0",
     "babel-core": "^6.4.5",
-    "babylon": "^6.11.4",
     "make-array": "^0.1.2",
     "mix2": "^1.0.1",
     "module-id": "^2.0.4",

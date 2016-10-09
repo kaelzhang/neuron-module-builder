@@ -38,40 +38,7 @@ const walker = require('module-walker')
 const make_array = require('make-array')
 const mix = require('mix2')
 const babel = require('babel-core')
-const babylon = require('babylon')
-const codeFrame = require('babel-code-frame')
 const module_id = require('module-id')
-
-
-function parseAst (code, sourceFilename) {
-  let ast
-
-  try {
-    ast = babylon.parse(code, {
-      sourceFilename,
-      allowImportExportEverywhere: true,
-      allowReturnOutsideFunction: true,
-      sourceType: 'module',
-      plugins: [
-        'objectRestSpread'
-      ]
-    })
-  } catch (error) {
-    const loc = error.loc
-    const printed = codeFrame(code, loc.line, loc.col, {
-      highlightCode: true
-    })
-    let message = `${error.message} while parsing "${sourceFilename}"
-
-${printed}
-`
-    let e = new SyntaxError(message)
-    e.loc = loc
-    throw e
-  }
-
-  return ast
-}
 
 
 function Builder(options) {
@@ -120,7 +87,7 @@ Builder.prototype._get_dependency_tree = function(filename, callback) {
     requireResolve: true,
     requireAsync: true,
     commentRequire: true,
-    parse: parseAst
+    parse: this.options.parseAST
   })
   .on('warn', message => {
     this.emit('warn', message)
@@ -283,7 +250,7 @@ Builder.prototype._generate_code = function(filename, callback) {
     if (options.babel) {
       let ast
       try {
-        ast = parseAst(code, filename)
+        ast = options.parseAST(code, filename)
       } catch (e) {
         return callback(e)
       }
@@ -295,12 +262,11 @@ Builder.prototype._generate_code = function(filename, callback) {
       try {
         code = babel.transformFromAst(ast, code, babelOptions).code
       } catch(e) {
-        console.log(node.ast)
         return callback(e)
       }
     }
 
-    callback(null, this._combile_statements(code))
+    callback(null, this._compile_statements(code))
   })
 }
 
@@ -315,7 +281,7 @@ var CODE_TEMPLATE = [
 
 ].join('\n')
 
-Builder.prototype._combile_statements = function(code) {
+Builder.prototype._compile_statements = function(code) {
   var locals = this.locals
 
   var statements = []
