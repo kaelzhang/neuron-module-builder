@@ -58,7 +58,9 @@ function parseAst (code, sourceFilename) {
     })
   } catch (error) {
     const loc = error.loc
-    const printed = codeFrame(code, loc.line, loc.col)
+    const printed = codeFrame(code, loc.line, loc.col, {
+      highlightCode: true
+    })
     let message = `${error.message} while parsing "${sourceFilename}"
 
 ${printed}
